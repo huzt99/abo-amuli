@@ -5,9 +5,19 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Generate Project Structure
+      - name: Generate Project Structure and Fix SDK
         script: |
           flutter create . --org com.store.app --project-name smart_store
+          python3 -c "
+          path = 'android/app/build.gradle'
+          with open(path, 'r') as f:
+              content = f.read()
+          content = content.replace('flutter.compileSdkVersion', '34')
+          content = content.replace('compileSdkVersion flutter.compileSdkVersion', 'compileSdkVersion 34')
+          content = content.replace('flutter.minSdkVersion', '21')
+          with open(path, 'w') as f:
+              f.write(content)
+          "
       - name: Build APK
         script: |
           flutter build apk --release
