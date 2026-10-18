@@ -8,6 +8,10 @@ workflows:
       - name: Generate Flutter Project Structure
         script: |
           flutter create . --org com.store.app --project-name smart_store
+      - name: Fix Android Compile SDK Version
+        script: |
+          sed -i '' 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle || true
+          sed -i '' 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle || true
       - name: Build APK
         script: |
           flutter build apk --release
