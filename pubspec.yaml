@@ -1,0 +1,17 @@
+name: smart_store_app
+description: A smart store and POS app.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  mobile_scanner: ^3.5.0
+  printing: ^5.11.0
+  pdf: ^3.10.4
+
+flutter:
+  uses-material-design: true
