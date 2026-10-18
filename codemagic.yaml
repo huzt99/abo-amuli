@@ -1,15 +1,15 @@
 workflows:
-  android-release:
-    name: Hussain Internet Services APK
-    max_build_duration: 30
+  default-workflow:
+    name: Default Workflow
+    instance_type: mac_mini_m1
     environment:
       flutter: stable
     scripts:
-      - name: Install dependencies
+      - name: Generate Flutter Project Structure
         script: |
-          flutter pub get
+          flutter create . --org com.store.app --project-name smart_store
       - name: Build APK
         script: |
           flutter build apk --release
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/flutter-apk/*.apk
