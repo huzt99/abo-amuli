@@ -5,13 +5,9 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Setup Project and Fix Android SDK Version
+      - name: Generate Project Structure
         script: |
           flutter create . --org com.store.app --project-name smart_store
-          cd android
-          perl -pi -e 's/compileSdk = .*/compileSdk = 34/g' app/build.gradle || true
-          perl -pi -e 's/compileSdkVersion .*/compileSdkVersion 34/g' app/build.gradle || true
-          cd ..
       - name: Build APK
         script: |
           flutter build apk --release
