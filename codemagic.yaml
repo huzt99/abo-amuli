@@ -5,25 +5,9 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Generate Project Structure and Fix SDK
+      - name: Get Dependencies
         script: |
-          flutter create . --org com.store.app --project-name smart_store
-          python3 -c "
-          import os
-          paths = ['android/app/build.gradle.kts', 'android/app/build.gradle']
-          for path in paths:
-              if os.path.exists(path):
-                  with open(path, 'r') as f:
-                      content = f.read()
-                  content = content.replace('flutter.compileSdkVersion', '34')
-                  content = content.replace('compileSdk = flutter.compileSdkVersion', 'compileSdk = 34')
-                  content = content.replace('compileSdk = 33', 'compileSdk = 34')
-                  content = content.replace('minSdk = flutter.minSdkVersion', 'minSdk = 21')
-                  with open(path, 'w') as f:
-                      f.write(content)
-                  print(f'Successfully updated {path}')
-                  break
-          "
+          flutter pub get
       - name: Build APK
         script: |
           flutter build apk --release
