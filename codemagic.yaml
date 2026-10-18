@@ -5,13 +5,13 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Generate Flutter Project Structure
+      - name: Setup Project and Fix Android SDK Version
         script: |
           flutter create . --org com.store.app --project-name smart_store
-      - name: Fix Android Compile SDK Version
-        script: |
-          sed -i '' 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle || true
-          sed -i '' 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle || true
+          cd android
+          perl -pi -e 's/compileSdk = .*/compileSdk = 34/g' app/build.gradle || true
+          perl -pi -e 's/compileSdkVersion .*/compileSdkVersion 34/g' app/build.gradle || true
+          cd ..
       - name: Build APK
         script: |
           flutter build apk --release
