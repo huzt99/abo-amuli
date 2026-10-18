@@ -9,14 +9,20 @@ workflows:
         script: |
           flutter create . --org com.store.app --project-name smart_store
           python3 -c "
-          path = 'android/app/build.gradle'
-          with open(path, 'r') as f:
-              content = f.read()
-          content = content.replace('flutter.compileSdkVersion', '34')
-          content = content.replace('compileSdkVersion flutter.compileSdkVersion', 'compileSdkVersion 34')
-          content = content.replace('flutter.minSdkVersion', '21')
-          with open(path, 'w') as f:
-              f.write(content)
+          import os
+          paths = ['android/app/build.gradle.kts', 'android/app/build.gradle']
+          for path in paths:
+              if os.path.exists(path):
+                  with open(path, 'r') as f:
+                      content = f.read()
+                  content = content.replace('flutter.compileSdkVersion', '34')
+                  content = content.replace('compileSdk = flutter.compileSdkVersion', 'compileSdk = 34')
+                  content = content.replace('compileSdk = 33', 'compileSdk = 34')
+                  content = content.replace('minSdk = flutter.minSdkVersion', 'minSdk = 21')
+                  with open(path, 'w') as f:
+                      f.write(content)
+                  print(f'Successfully updated {path}')
+                  break
           "
       - name: Build APK
         script: |
