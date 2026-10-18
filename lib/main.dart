@@ -4,204 +4,126 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 void main() {
-  runApp(const SmartStoreApp());
+  runApp(const ProStoreApp());
 }
 
-class SmartStoreApp extends StatelessWidget {
-  const SmartStoreApp({Key? key}) : super(key: key);
+class ProStoreApp extends StatelessWidget {
+  const ProStoreApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'الكاشير والمخازن الذكي',
+      title: 'نظام الكاشير المحترف',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green,
-          brightness: Brightness.dark,
-        ),
+        brightness: Brightness.dark,
+        colorSchemeSeed: Colors.blueAccent,
         fontFamily: 'Cairo',
       ),
-      home: const MainScreen(),
+      home: const DashboardScreen(),
     );
   }
 }
 
-// نموذج بيانات المنتج
-class Product {
+// نموذج المادة والبيانات الشاملة
+class ProductItem {
   final String barcode;
   String name;
-  int itemsPerCarton;
   double unitPrice;
   double cartonPrice;
+  int itemsPerCarton;
   int singleStock;
   int cartonStock;
+  String category;
 
-  Product({
+  ProductItem({
     required this.barcode,
     required this.name,
-    required this.itemsPerCarton,
     required this.unitPrice,
     required this.cartonPrice,
+    required this.itemsPerCarton,
     required this.singleStock,
     required this.cartonStock,
+    required this.category,
   });
 }
 
-class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key}) : super(key: key);
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({Key? key}) : super(key: key);
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+class _DashboardScreenState extends State<DashboardScreen> {
+  int _selectedTab = 0;
 
-  // قاعدة البيانات المحلية للتطبيق
-  final Map<String, Product> _database = {
-    '6281001234567': Product(
-      barcode: '6281001234567',
-      name: 'مشروب غازي 300 مل',
-      itemsPerCarton: 24,
+  // قاعدة بيانات تجريبية تحاكي النظام الموضح في الفيديو
+  final Map<String, ProductItem> _storeDatabase = {
+    '123456789': ProductItem(
+      barcode: '123456789',
+      name: 'بيبسي 300 مل',
       unitPrice: 500,
       cartonPrice: 11000,
-      singleStock: 10,
-      cartonStock: 2,
+      itemsPerCarton: 24,
+      singleStock: 15,
+      cartonStock: 3,
+      category: 'المشروبات',
     ),
   };
 
-  Product? _scannedProduct;
-  String _lastScannedBarcode = '';
-  final List<Map<String, dynamic>> _salesLog = [];
+  final List<Map<String, dynamic>> _cartItems = [];
+  final List<Map<String, dynamic>> _salesHistory = [];
 
-  // وحدات التحكم لحقول نموذج الإضافة
-  final TextEditingController _barcodeController = TextEditingController();
+  // حقول إضافة مادة جديدة
+  final TextEditingController _bcController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _itemsPerCartonController = TextEditingController(text: '24');
-  final TextEditingController _unitPriceController = TextEditingController();
-  final TextEditingController _cartonPriceController = TextEditingController();
+  final TextEditingController _uPriceController = TextEditingController();
+  final TextEditingController _cPriceController = TextEditingController();
+  final TextEditingController _ipcController = TextEditingController(text: '24');
   final TextEditingController _singleStockController = TextEditingController(text: '0');
   final TextEditingController _cartonStockController = TextEditingController(text: '0');
 
-  // عند مسح باركود بالكاميرا
-  void _onBarcodeDetected(BarcodeCapture capture) {
-    final List<Barcode> barcodes = capture.barcodes;
-    for (const barcode in barcodes) {
-      if (barcode.rawValue != null) {
-        String code = barcode.rawValue!;
-        if (code != _lastScannedBarcode) {
-          _lastScannedBarcode = code;
-          setState(() {
-            _scannedProduct = _database[code];
-          });
-          if (_scannedProduct == null) {
-            // إذا لم تكن المادة موجودة، نقوم بنقل الباركود تلقائياً لحقل الإضافة
-            _barcodeController.text = code;
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  // حفظ أو تحديث منتج في قاعدة البيانات
-  void _saveProduct() {
-    String barcode = _barcodeController.text.trim();
-    String name = _nameController.text.trim();
-    if (barcode.isEmpty || name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى إدخال الباركود واسم السلعة على الأقل!')),
-      );
-      return;
-    }
-
+  void _addToCart(ProductItem product, String type) {
     setState(() {
-      _database[barcode] = Product(
-        barcode: barcode,
-        name: name,
-        itemsPerCarton: int.tryParse(_itemsPerCartonController.text) ?? 24,
-        unitPrice: double.tryParse(_unitPriceController.text) ?? 0.0,
-        cartonPrice: double.tryParse(_cartonPriceController.text) ?? 0.0,
-        singleStock: int.tryParse(_singleStockController.text) ?? 0,
-        cartonStock: int.tryParse(_cartonStockController.text) ?? 0,
-      );
-    });
-
-    // تفريغ الحقول والعودة لصفحة المسح
-    _barcodeController.clear();
-    _nameController.clear();
-    _unitPriceController.clear();
-    _cartonPriceController.clear();
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم حفظ السلعة في المخزن بنجاح!')),
-    );
-    setState(() {
-      _currentIndex = 0; // العودة للماسح
-    });
-  }
-
-  // فتح كارتون واحد
-  void _openCarton() {
-    if (_scannedProduct != null && _scannedProduct!.cartonStock > 0) {
-      setState(() {
-        _scannedProduct!.cartonStock -= 1;
-        _scannedProduct!.singleStock += _scannedProduct!.itemsPerCarton;
+      double price = type == 'single' ? product.unitPrice : product.cartonPrice;
+      _cartItems.add({
+        'name': product.name,
+        'type': type == 'single' ? 'مفرد' : 'كارتون',
+        'price': price,
+        'barcode': product.barcode,
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم فتح كارتون وتحويله إلى قطع مفردة بنجاح!')),
-      );
-    }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('تمت إضافة ${product.name} إلى السلة'), duration: const Duration(milliseconds: 500)),
+    );
   }
 
-  // عملية البيع وطباعة الوصل
-  void _sellItem(String type) async {
-    if (_scannedProduct == null) return;
-
-    double priceToCharge = 0;
-    if (type == 'single') {
-      if (_scannedProduct!.singleStock > 0) {
-        _scannedProduct!.singleStock -= 1;
-      } else if (_scannedProduct!.cartonStock > 0) {
-        _scannedProduct!.cartonStock -= 1;
-        _scannedProduct!.singleStock += (_scannedProduct!.itemsPerCarton - 1);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('عذراً، المخزون نَفَد تماماً!')),
-        );
-        return;
-      }
-      priceToCharge = _scannedProduct!.unitPrice;
-    } else {
-      if (_scannedProduct!.cartonStock > 0) {
-        _scannedProduct!.cartonStock -= 1;
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لا توجد كارتونات متوفرة للبيع!')),
-        );
-        return;
-      }
-      priceToCharge = _scannedProduct!.cartonPrice;
+  double _calculateTotal() {
+    double total = 0;
+    for (var item in _cartItems) {
+      total += item['price'];
     }
+    return total;
+  }
 
-    // تسجيل البيع في السجل اليومي
+  Future<void> _completeSaleAndPrint() async {
+    if (_cartItems.isEmpty) return;
+
+    double total = _calculateTotal();
+    
+    // تسجيل المبيعات
     setState(() {
-      _salesLog.insert(0, {
-        'name': _scannedProduct!.name,
-        'type': type == 'single' ? 'قطعة مفردة' : 'كارتون كامل',
-        'price': priceToCharge,
+      _salesHistory.insert(0, {
+        'items': List.from(_cartItems),
+        'total': total,
         'time': DateTime.now().toString().substring(11, 19),
       });
+      _cartItems.clear();
     });
 
-    // طباعة الوصل (عبر طابعة بلوتوث أو سلك USB المتصلة بالموبايل)
-    await _printReceipt(_scannedProduct!.name, type, priceToCharge);
-  }
-
-  // طباعة الوصل الحراري
-  Future<void> _printReceipt(String itemName, String type, double price) async {
+    // طباعة الوصل الحراري
     final doc = pw.Document();
     doc.addPage(
       pw.Page(
@@ -209,21 +131,25 @@ class _MainScreenState extends State<MainScreen> {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text('إيصال مبيعات المحل', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 10),
+              pw.Text('وصل مبيعات المحل', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.Divider(),
-              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text('السلعة: $itemName'),
-                pw.Text('النوع: $type'),
-              ]),
-              pw.SizedBox(height: 8),
-              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
-                pw.Text('السعر الإجمالي:'),
-                pw.Text('$price د.ع', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              ]),
+              ..._salesHistory.first['items'].map((item) => pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('${item['name']} (${item['type']})'),
+                  pw.Text('${item['price']} د.ع'),
+                ],
+              )).toList(),
               pw.Divider(),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('الإجمالي الكلي:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  pw.Text('$total د.ع', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
               pw.SizedBox(height: 10),
-              pw.Text('شكراً لزيارتكم!', style: const pw.TextStyle(fontSize: 12)),
+              pw.Text('شكراً لتعاملكم معنا!'),
             ],
           );
         },
@@ -231,186 +157,200 @@ class _MainScreenState extends State<MainScreen> {
     );
 
     await Printing.layoutPdf(onLayout: (format) async => doc.save());
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تمت العملية وطباعة الوصل بنجاح')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final List<Widget> pages = [
-      // 1. صفحة الماسح والبيع
-      SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Container(
-              height: 220,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.green, width: 2),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: MobileScanner(onDetect: _onBarcodeDetected),
-              ),
-            ),
-            const SizedBox(height: 15),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
-              onPressed: () => setState(() { _lastScannedBarcode = ''; _scannedProduct = null; }),
-              icon: const Icon(Icons.refresh),
-              label: const Text('إعادة مسح باركود جديد'),
-            ),
-            const SizedBox(height: 15),
-            if (_scannedProduct != null) ...[
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      // 1. شاشة نقطة البيع الرئيسية (POS) المماثلة للفيديو
+      Row(
+        children: [
+          // القسم الأيمن: سلة البيع والحسابات
+          Expanded(
+            flex: 5,
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  color: Colors.blueGrey[900],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(_scannedProduct!.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.amber)),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Column(children: [const Text('مفرد'), Text('${_scannedProduct!.unitPrice} د.ع', style: const TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.bold))]),
-                          Column(children: [const Text('كارتون'), Text('${_scannedProduct!.cartonPrice} د.ع', style: const TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.bold))]),
-                        ],
-                      ),
-                      const Divider(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          Text('القطع المفردة: ${_scannedProduct!.singleStock}'),
-                          Text('الكارتونات: ${_scannedProduct!.cartonStock}'),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[800]),
-                          onPressed: _openCarton,
-                          icon: const Icon(Icons.inventory_2),
-                          label: Text('فتح كارتون واحد (+${_scannedProduct!.itemsPerCarton} قطعة)'),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                              onPressed: () => _sellItem('single'),
-                              child: const Text('بيع مفرد'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
-                              onPressed: () => _sellItem('carton'),
-                              child: const Text('بيع كارتون'),
-                            ),
-                          ),
-                        ],
+                      const Text('قائمة البيع الحالية', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                        onPressed: _completeSaleAndPrint,
+                        icon: const Icon(Icons.print, size: 18),
+                        label: const Text('إتمام البيع والطباعة'),
                       ),
                     ],
                   ),
                 ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _cartItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _cartItems[index];
+                      return ListTile(
+                        title: Text(item['name']),
+                        subtitle: Text('النوع: ${item['type']}'),
+                        trailing: Text('${item['price']} د.ع', style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+                        leading: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => setState(() => _cartItems.removeAt(index)),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.black45,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('المجموع الكلي:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('${_calculateTotal()} د.ع', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // القسم الأيسر: الأزرار السريعة والمجموعات
+          Expanded(
+            flex: 4,
+            child: Container(
+              color: Colors.grey[900],
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: Text('الأزرار السريعة والمواد', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(8),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        childAspectRatio: 2.5,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                      ),
+                      itemCount: _storeDatabase.length,
+                      itemBuilder: (context, index) {
+                        String key = _storeDatabase.keys.elementAt(index);
+                        ProductItem prod = _storeDatabase[key]!;
+                        return ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
+                          onPressed: () => _addToCart(prod, 'single'),
+                          child: Text(prod.name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ] else ...[
-              const Card(
-                child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: Text('وجه الكاميرا نحو باركود السلعة، أو انتقل لتبويب إضافة مادة جديدة.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+            ),
+          ),
+        ],
+      ),
+
+      // 2. ماسح الباركود بالكاميرا
+      Center(
+        child: Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text('وجه كاميرا الموبايل نحو الباركود', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            SizedBox(
+              height: 350,
+              width: 350,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: MobileScanner(
+                  onDetect: (capture) {
+                    final barcodes = capture.barcodes;
+                    for (final barcode in barcodes) {
+                      if (barcode.rawValue != null) {
+                        String code = barcode.rawValue!;
+                        if (_storeDatabase.containsKey(code)) {
+                          _addToCart(_storeDatabase[code]!, 'single');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('الباركود غير مسجل: $code')),
+                          );
+                        }
+                      }
+                    }
+                  },
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),
 
-      // 2. صفحة إضافة مادة جديدة
+      // 3. شاشة إضافة مادة جديدة (محاكاة لشاشة الإضافة في الكمبيوتر)
       SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Card(
-          elevation: 4,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('إضافة سلعة جديدة للمخزن', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.green)),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: _barcodeController,
-                  decoration: const InputDecoration(labelText: 'رقم الباركود', border: OutlineInputBorder()),
-                ),
+                const Text('إضافة مادة جديدة للمخزن', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'اسم السلعة (مثال: بيبسي 300مل)', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _itemsPerCartonController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'عدد القطع داخل الكارتون الواحد', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
+                TextField(controller: _bcController, decoration: const InputDecoration(labelText: 'رقم الباركود')),
+                TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'اسم المادة')),
                 Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _unitPriceController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'سعر القطعة المفردة', border: OutlineInputBorder()),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _cartonPriceController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'سعر الكارتون الكامل', border: OutlineInputBorder()),
-                      ),
-                    ),
+                    Expanded(child: TextField(controller: _uPriceController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'سعر المفرد'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(controller: _cPriceController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'سعر الكارتون'))),
                   ],
                 ),
-                const SizedBox(height: 12),
+                TextField(controller: _ipcController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'عدد القطع في الكارتون')),
                 Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _singleStockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'القطع المفردة الحالية', border: OutlineInputBorder()),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _cartonStockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'الكارتونات الحالية', border: OutlineInputBorder()),
-                      ),
-                    ),
+                    Expanded(child: TextField(controller: _singleStockController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'القطع الحالية'))),
+                    const SizedBox(width: 8),
+                    Expanded(child: TextField(controller: _cartonStockController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الكارتونات الحالية'))),
                   ],
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.all(14),
-                    backgroundColor: Colors.green,
-                  ).wrap(
-                    ElevatedButton(
-                      onPressed: _saveProduct,
-                      child: const Text('حفظ السلعة في المخزن', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    ),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    onPressed: () {
+                      String code = _bcController.text.trim();
+                      if (code.isNotEmpty) {
+                        setState(() {
+                          _storeDatabase[code] = ProductItem(
+                            barcode: code,
+                            name: _nameController.text,
+                            unitPrice: double.tryParse(_uPriceController.text) ?? 0,
+                            cartonPrice: double.tryParse(_cPriceController.text) ?? 0,
+                            itemsPerCarton: int.tryParse(_ipcController.text) ?? 24,
+                            singleStock: int.tryParse(_singleStockController.text) ?? 0,
+                            cartonStock: int.tryParse(_cartonStockController.text) ?? 0,
+                            category: 'عام',
+                          );
+                        });
+                        _bcController.clear();
+                        _nameController.clear();
+                        _uPriceController.clear();
+                        _cPriceController.clear();
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ المادة بنجاح')));
+                      }
+                    },
+                    child: const Text('حفظ المادة'),
                   ),
                 ),
               ],
@@ -418,44 +358,23 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
       ),
-
-      // 3. صفحة جرد المبيعات اليومية
-      ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: _salesLog.length,
-        itemBuilder: (context, index) {
-          final sale = _salesLog[index];
-          return Card(
-            child: ListTile(
-              leading: const Icon(Icons.receipt_long, color: Colors.green),
-              title: Text(sale['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('النوع: ${sale['type']} - الوقت: ${sale['time']}'),
-              trailing: Text('${sale['price']} د.ع', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 16)),
-            ),
-          );
-        },
-      ),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('برنامج الكاشير والمخازن الذكي'),
+        title: const Text('نظام الكاشير والمخازن الذكي (موبايل)'),
         centerTitle: true,
       ),
-      body: pages[_currentIndex],
+      body: pages[_selectedTab],
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        selectedIndex: _selectedTab,
+        onDestinationSelected: (idx) => setState(() => _selectedTab = idx),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.qr_code_scanner), label: 'الماسح والبيع'),
+          NavigationDestination(icon: Icon(Icons.point_of_sale), label: 'نقطة البيع'),
+          NavigationDestination(icon: Icon(Icons.camera_alt), label: 'الماسح الكاميرا'),
           NavigationDestination(icon: Icon(Icons.add_box), label: 'إضافة مادة'),
-          NavigationDestination(icon: Icon(Icons.analytics), label: 'سجل المبيعات'),
         ],
       ),
     );
   }
-}
-
-extension on ButtonStyle? {
-  Widget wrap(Widget child) => child;
 }
