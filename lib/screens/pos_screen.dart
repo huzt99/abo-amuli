@@ -27,7 +27,6 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  // إضافة منتج للسلة
   void _addToCart(Map<String, dynamic> product) {
     setState(() {
       int index = _cart.indexWhere((item) => item['id'] == product['id']);
@@ -44,7 +43,6 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  // حساب المجموع الكلي
   double get _cartTotal {
     double total = 0;
     for (var item in _cart) {
@@ -53,7 +51,6 @@ class _PosScreenState extends State<PosScreen> {
     return total;
   }
 
-  // إتمام عملية البيع
   Future<void> _checkout() async {
     if (_cart.isEmpty) return;
 
@@ -64,12 +61,15 @@ class _PosScreenState extends State<PosScreen> {
       });
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تمت عملية البيع بنجاح وتوليد الفاتورة!')),
+        const SnackBar(
+          content: Text('تمت عملية البيع بنجاح وطباعة الفاتورة!'),
+          backgroundColor: Colors.green,
+        ),
       );
-      _loadTouchProducts(); // تحديث المخزون
+      _loadTouchProducts();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('حدث خطأ: $e')),
+        SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -77,74 +77,88 @@ class _PosScreenState extends State<PosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('نقطة البيع (POS)'),
+        title: const Text('نقطة البيع السريع (POS)', style: TextStyle(color: Colors.white, fontSize: 16)),
         backgroundColor: const Color(0xFF1E293B),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Row(
         children: [
-          // القسم الأيمن: أزرار اللمس للمنتجات
+          // القسم الأيمن: أزرار المنتجات بتصميم عصري فخم
           Expanded(
             flex: 3,
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
                 : _touchProducts.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'لا توجد مواد مضافة لعرضها في أزرار اللمس.\nقم بإضافة مواد جديدة وفعل خيار "إظهار في أزرار اللمس".',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey, fontSize: 16),
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Text(
+                            'لا توجد مواد مضافة لأزرار اللمس.\nأضف مواد من شاشة "إضافة منتج" وفعل خيار الإظهار.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                          ),
                         ),
                       )
                     : Padding(
-                        padding: const EdgeInsets.all(8.0),
+                        padding: const EdgeInsets.all(12.0),
                         child: GridView.builder(
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 1.1,
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                            childAspectRatio: 1.2,
                           ),
                           itemCount: _touchProducts.length,
                           itemBuilder: (context, index) {
                             final product = _touchProducts[index];
-                            return InkWell(
-                              onTap: () => _addToCart(product),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.blue.shade200),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      product['name'],
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: Color(0xFF1E293B),
-                                      ),
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () => _addToCart(product),
+                                borderRadius: BorderRadius.circular(16),
+                                child: Ink(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1E293B),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          product['name'],
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          '${product['price']} د.ع',
+                                          style: const TextStyle(
+                                            color: Color(0xFF34D399),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        Text(
+                                          'المخزون: ${product['quantity']}',
+                                          style: TextStyle(
+                                            color: Colors.grey.shade400,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      '${product['price']} دينار',
-                                      style: const TextStyle(
-                                        color: Colors.green,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                    Text(
-                                      'متوفر: ${product['quantity']}',
-                                      style: const TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 10,
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                               ),
                             );
@@ -153,31 +167,34 @@ class _PosScreenState extends State<PosScreen> {
                       ),
           ),
 
-          // القسم الأيسر: سلة المبيعات والفاتورة
+          // القسم الأيسر: سلة المبيعات الاحترافية
           Expanded(
             flex: 2,
             child: Container(
-              color: Colors.grey.shade100,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E293B),
+                border: Border(right: BorderSide(color: Color(0xFF334155))),
+              ),
               child: Column(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
-                    color: Colors.grey.shade200,
+                    padding: const EdgeInsets.all(16),
+                    color: const Color(0xFF0F172A),
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('المادة', style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text('الكمية والسعر', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('سلة المبيعات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        Icon(Icons.shopping_cart_outlined, color: Colors.white70, size: 20),
                       ],
                     ),
                   ),
                   Expanded(
                     child: _cart.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              'السلة فارغة\nاختر مادة من الأزرار الجانبية',
+                              'السلة فارغة\nاضغط على المنتجات لبيعها',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey),
+                              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
                             ),
                           )
                         : ListView.builder(
@@ -185,11 +202,11 @@ class _PosScreenState extends State<PosScreen> {
                             itemBuilder: (context, index) {
                               final item = _cart[index];
                               return ListTile(
-                                title: Text(item['name'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                                subtitle: Text('${item['price']} × ${item['cart_qty']}'),
+                                title: Text(item['name'], style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                subtitle: Text('${item['price']} × ${item['cart_qty']}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
                                 trailing: Text(
                                   '${(item['price'] * item['cart_qty'])} د',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                                  style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 12),
                                 ),
                               );
                             },
@@ -197,23 +214,26 @@ class _PosScreenState extends State<PosScreen> {
                   ),
                   Container(
                     padding: const EdgeInsets.all(16),
-                    color: Colors.white,
+                    color: const Color(0xFF0F172A),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          'المجموع: $_cartTotal دينار',
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
-                          textAlign: TextAlign.center,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('المجموع الكلي:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            Text('$_cartTotal دينار', style: const TextStyle(color: Color(0xFF34D399), fontSize: 16, fontWeight: FontWeight.bold)),
+                          ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: const Color(0xFF10B981),
                             padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: _checkout,
-                          child: const Text('إتمام البيع والدفع', style: TextStyle(fontSize: 16, color: Colors.white)),
+                          child: const Text('إتمام البيع والدفع', style: TextStyle(fontSize: 14, color: Colors.white, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
