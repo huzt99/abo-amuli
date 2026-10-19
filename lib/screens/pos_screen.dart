@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../database/database_helper.dart';
 
 class PosScreen extends StatefulWidget {
@@ -51,45 +52,58 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  void _openCameraScanner() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return SizedBox(
-          height: 400,
-          child: Column(
-            children: [
-              AppBar(
-                title: const Text('وجّه الكاميرا نحو الباركود'),
-                automaticallyImplyLeading: false,
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  )
-                ],
-              ),
-              Expanded(
-                child: MobileScanner(
-                  onDetect: (capture) {
-                    final List<Barcode> barcodes = capture.barcodes;
-                    for (final barcode in barcodes) {
-                      if (barcode.rawValue != null) {
-                        final String code = barcode.rawValue!;
-                        Navigator.pop(context);
-                        _scanAndAddBarcode(code);
-                        break;
-                      }
-                    }
-                  },
+  // دالة طلب إذن الكاميرا وفتحها بذكاء
+  Future<void> _openCameraScanner() async {
+    var status = await Permission.camera.request();
+    if (status.isGranted) {
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (context) {
+          return SizedBox(
+            height: 400,
+            child: Column(
+              children: [
+                AppBar(
+                  title: const Text('وجّه الكاميرا نحو الباركود'),
+                  automaticallyImplyLeading: false,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  ],
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+                Expanded(
+                  child: MobileScanner(
+                    onDetect: (capture) {
+                      final List<Barcode> barcodes = capture.barcodes;
+                      for (final barcode in barcodes) {
+                        if (barcode.rawValue != null) {
+                          final String code = barcode.rawValue!;
+                          Navigator.pop(context);
+                          _scanAndAddBarcode(code);
+                          break;
+                        }
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('يرجى إعطاء صلاحية استخدام الكاميرا من إعدادات الموبايل'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   void _addToCart(Map<String, dynamic> product) {
@@ -157,7 +171,6 @@ class _PosScreenState extends State<PosScreen> {
       ),
       body: Column(
         children: [
-          // شريط البحث وفحص الباركود السريع
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: const Color(0xFF1E293B),
@@ -197,7 +210,6 @@ class _PosScreenState extends State<PosScreen> {
           Expanded(
             child: Row(
               children: [
-                // أزرار اللمس للمنتجات
                 Expanded(
                   flex: 3,
                   child: _isLoading
@@ -266,8 +278,6 @@ class _PosScreenState extends State<PosScreen> {
                               ),
                             ),
                 ),
-
-                // سلة المبيعات
                 Expanded(
                   flex: 2,
                   child: Container(
