@@ -5,6 +5,10 @@ workflows:
     environment:
       flutter: stable
     scripts:
+      - name: Clean and Generate Fresh Project
+        script: |
+          rm -rf android ios linux macos windows web
+          flutter create . --org com.store.app --project-name smart_store
       - name: Build APK
         script: |
           flutter build apk --release
