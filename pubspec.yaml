@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  mobile_scanner: ^3.3.0
+  mobile_scanner: ^2.5.3
   printing: ^5.11.0
   pdf: ^3.10.4
 
