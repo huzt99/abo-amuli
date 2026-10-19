@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/pos_screen.dart';
+import 'screens/dashboard_screen.dart'; // استدعاء لوحة التحكم
 
 void main() {
   runApp(const PosSystemApp());
@@ -15,10 +15,10 @@ class PosSystemApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blue,
-        fontFamily: 'Cairo', // الخط العربي العام
+        fontFamily: 'Cairo',
       ),
-      // جعل شاشة نقطة البيع هي الواجهة الافتتاحية عند فتح التطبيق
-      home: const PosScreen(),
+      // جعل لوحة التحكم هي الواجهة الرئيسية عند بدء التطبيق
+      home: const DashboardScreen(),
     );
   }
 }
