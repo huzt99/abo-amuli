@@ -1,4 +1,4 @@
-name: Build Android APK and Windows App
+name: Build Android and Windows
 
 on:
   push:
@@ -6,14 +6,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 1. بناء تطبيق الأندرويد (APK)
   build-android:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -23,11 +22,12 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
-      - name: Get Dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Build Release APK
+      - name: Build APK
         run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK
@@ -36,25 +36,25 @@ jobs:
           name: app-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-  # 2. بناء تطبيق الويندوز (EXE)
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          cache: true
 
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
 
-      - name: Get Dependencies
+      - name: Install dependencies
         run: flutter pub get
 
-      - name: Build Release Windows
+      - name: Build Windows App
         run: flutter build windows --release
 
       - name: Upload Windows App
