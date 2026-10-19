@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'pos_screen.dart';
 import 'add_product_screen.dart';
-import 'product_list_screen.dart'; // تم استدعاء شاشة عرض المواد هنا
+import 'product_list_screen.dart';
+import 'sales_report_screen.dart'; // الفقرة 4: استدعاء شاشة كشف المبيعات
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // قائمة الأزرار الـ 12 الرئيسية المطابقة لواجهة النظام الأصلية
+    // أزرار الشاشة الـ 12 الرئيسية المطابقة للنظام الأصلي
     final List<Map<String, dynamic>> dashboardItems = [
       {'title': 'نقطة بيع', 'icon': Icons.point_of_sale, 'color': Colors.blueAccent},
       {'title': 'عرض المواد', 'icon': Icons.inventory, 'color': Colors.orangeAccent},
@@ -25,7 +26,7 @@ class DashboardScreen extends StatelessWidget {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A), // خلفية داكنة احترافية مطابقة للنظام
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         title: const Text('لوحة التحكم الرئيسية - نظام POS', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
         backgroundColor: const Color(0xFF1E293B),
@@ -35,7 +36,7 @@ class DashboardScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         child: GridView.builder(
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4, // 4 أزرار في كل صف مثل الواجهة الأصلية
+            crossAxisCount: 4, // 4 أزرار في كل صف
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
             childAspectRatio: 1.3,
@@ -53,13 +54,15 @@ class DashboardScreen extends StatelessWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
                 onTap: () {
-                  // توجيه الشاشة حسب الزر المضغوط
+                  // توجيه أزرار الشاشة (بما فيها الفقرة 4: كشف مبيعات)
                   if (item['title'] == 'نقطة بيع') {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
                   } else if (item['title'] == 'إضافة مادة') {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductScreen()));
                   } else if (item['title'] == 'عرض المواد') {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductListScreen()));
+                  } else if (item['title'] == 'كشف مبيعات') {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const SalesReportScreen())); // الفقرة 4
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('تم النقر على قسم: ${item['title']}', style: const TextStyle(fontFamily: 'Cairo'))),
