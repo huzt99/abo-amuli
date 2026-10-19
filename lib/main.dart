@@ -1,379 +1,278 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 void main() {
-  runApp(const ProStoreApp());
+  runApp(const SmartStoreApp());
 }
 
-class ProStoreApp extends StatelessWidget {
-  const ProStoreApp({Key? key}) : super(key: key);
+class SmartStoreApp extends StatelessWidget {
+  const SmartStoreApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'نظام الكاشير المحترف',
+      title: 'كاشير والمخازن الذكي',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: Colors.blueAccent,
-        fontFamily: 'Cairo',
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF121212),
+        primaryColor: Colors.green,
+        cardColor: const Color(0xFF1E1E1E),
       ),
-      home: const DashboardScreen(),
+      home: const MainHomeScreen(),
     );
   }
 }
 
-// نموذج المادة والبيانات الشاملة
-class ProductItem {
-  final String barcode;
-  String name;
-  double unitPrice;
-  double cartonPrice;
-  int itemsPerCarton;
-  int singleStock;
-  int cartonStock;
-  String category;
-
-  ProductItem({
-    required this.barcode,
-    required this.name,
-    required this.unitPrice,
-    required this.cartonPrice,
-    required this.itemsPerCarton,
-    required this.singleStock,
-    required this.cartonStock,
-    required this.category,
-  });
-}
-
-class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+class MainHomeScreen extends StatefulWidget {
+  const MainHomeScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<MainHomeScreen> createState() => _MainHomeScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  int _selectedTab = 0;
+class _MainHomeScreenState extends State<MainHomeScreen> {
+  int _currentIndex = 0;
 
-  // قاعدة بيانات تجريبية تحاكي النظام الموضح في الفيديو
-  final Map<String, ProductItem> _storeDatabase = {
-    '123456789': ProductItem(
-      barcode: '123456789',
-      name: 'بيبسي 300 مل',
-      unitPrice: 500,
-      cartonPrice: 11000,
-      itemsPerCarton: 24,
-      singleStock: 15,
-      cartonStock: 3,
-      category: 'المشروبات',
-    ),
-  };
+  final List<Widget> _screens = [
+    const PosScreen(),
+    const CameraScannerScreen(),
+    const AddProductScreen(),
+  ];
 
-  final List<Map<String, dynamic>> _cartItems = [];
-  final List<Map<String, dynamic>> _salesHistory = [];
-
-  // حقول إضافة مادة جديدة
-  final TextEditingController _bcController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _uPriceController = TextEditingController();
-  final TextEditingController _cPriceController = TextEditingController();
-  final TextEditingController _ipcController = TextEditingController(text: '24');
-  final TextEditingController _singleStockController = TextEditingController(text: '0');
-  final TextEditingController _cartonStockController = TextEditingController(text: '0');
-
-  void _addToCart(ProductItem product, String type) {
-    setState(() {
-      double price = type == 'single' ? product.unitPrice : product.cartonPrice;
-      _cartItems.add({
-        'name': product.name,
-        'type': type == 'single' ? 'مفرد' : 'كارتون',
-        'price': price,
-        'barcode': product.barcode,
-      });
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('تمت إضافة ${product.name} إلى السلة'), duration: const Duration(milliseconds: 500)),
-    );
-  }
-
-  double _calculateTotal() {
-    double total = 0;
-    for (var item in _cartItems) {
-      total += item['price'];
-    }
-    return total;
-  }
-
-  Future<void> _completeSaleAndPrint() async {
-    if (_cartItems.isEmpty) return;
-
-    double total = _calculateTotal();
-    
-    // تسجيل المبيعات
-    setState(() {
-      _salesHistory.insert(0, {
-        'items': List.from(_cartItems),
-        'total': total,
-        'time': DateTime.now().toString().substring(11, 19),
-      });
-      _cartItems.clear();
-    });
-
-    // طباعة الوصل الحراري
-    final doc = pw.Document();
-    doc.addPage(
-      pw.Page(
-        build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.center,
-            children: [
-              pw.Text('وصل مبيعات المحل', style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-              pw.Divider(),
-              ..._salesHistory.first['items'].map((item) => pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('${item['name']} (${item['type']})'),
-                  pw.Text('${item['price']} د.ع'),
-                ],
-              )).toList(),
-              pw.Divider(),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('الإجمالي الكلي:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  pw.Text('$total د.ع', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                ],
-              ),
-              pw.SizedBox(height: 10),
-              pw.Text('شكراً لتعاملكم معنا!'),
-            ],
-          );
-        },
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('نظام الكاشير والمخازن الذكي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        backgroundColor: const Color(0xFF1F1F1F),
+        elevation: 0,
+      ),
+      body: _screens[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        backgroundColor: const Color(0xFF1F1F1F),
+        selectedItemColor: Colors.greenAccent,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.point_of_sale), label: 'نقطة البيع'),
+          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'الماسح الضوئي'),
+          BottomNavigationBarItem(icon: Icon(Icons.add_box), label: 'إضافة مادة'),
+        ],
       ),
     );
+  }
+}
 
-    await Printing.layoutPdf(onLayout: (format) async => doc.save());
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تمت العملية وطباعة الوصل بنجاح')),
-    );
+// 1. شاشة نقطة البيع (متجاوبة للموبايل)
+class PosScreen extends StatefulWidget {
+  const PosScreen({super.key});
+
+  @override
+  State<PosScreen> createState() => _PosScreenState();
+}
+
+class _PosScreenState extends State<PosScreen> {
+  double total = 0.0;
+  List<Map<String, dynamic>> cart = [];
+
+  void addItem(String name, double price) {
+    setState(() {
+      cart.add({'name': name, 'price': price});
+      total += price;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<Widget> pages = [
-      // 1. شاشة نقطة البيع الرئيسية (POS) المماثلة للفيديو
-      Row(
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
         children: [
-          // القسم الأيمن: سلة البيع والحسابات
-          Expanded(
-            flex: 5,
-            child: Column(
+          // أزرار المواد السريعة
+          SizedBox(
+            height: 50,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  color: Colors.blueGrey[900],
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('قائمة البيع الحالية', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                        onPressed: _completeSaleAndPrint,
-                        icon: const Icon(Icons.print, size: 18),
-                        label: const Text('إتمام البيع والطباعة'),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: _cartItems.length,
-                    itemBuilder: (context, index) {
-                      final item = _cartItems[index];
-                      return ListTile(
-                        title: Text(item['name']),
-                        subtitle: Text('النوع: ${item['type']}'),
-                        trailing: Text('${item['price']} د.ع', style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-                        leading: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => setState(() => _cartItems.removeAt(index)),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  color: Colors.black45,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('المجموع الكلي:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      Text('${_calculateTotal()} د.ع', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
-                    ],
-                  ),
-                ),
+                _quickButton('بيبسي', 750),
+                _quickButton('ماء', 250),
+                _quickButton('شيبس', 500),
+                _quickButton('عصير', 500),
               ],
             ),
           ),
-          // القسم الأيسر: الأزرار السريعة والمجموعات
+          const SizedBox(height: 12),
+          // قائمة المنتجات بالفاتورة
           Expanded(
-            flex: 4,
             child: Container(
-              color: Colors.grey[900],
-              child: Column(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Text('الأزرار السريعة والمواد', style: TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.all(8),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 2.5,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                      ),
-                      itemCount: _storeDatabase.length,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: cart.isEmpty
+                  ? const Center(child: Text('السلة فارغة حالياً', style: TextStyle(color: Colors.grey)))
+                  : ListView.builder(
+                      itemCount: cart.length,
                       itemBuilder: (context, index) {
-                        String key = _storeDatabase.keys.elementAt(index);
-                        ProductItem prod = _storeDatabase[key]!;
-                        return ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-                          onPressed: () => _addToCart(prod, 'single'),
-                          child: Text(prod.name, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12)),
+                        return Card(
+                          color: const Color(0xFF2A2A2A),
+                          child: ListTile(
+                            title: Text(cart[index]['name']),
+                            trailing: Text('${cart[index]['price']} د.ع', style: const TextStyle(color: Colors.greenAccent)),
+                          ),
                         );
                       },
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
-        ],
-      ),
-
-      // 2. ماسح الباركود بالكاميرا
-      Center(
-        child: Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16.0),
-              child: Text('وجه كاميرا الموبايل نحو الباركود', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          // المجموع وزر البيع
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF252525),
+              borderRadius: BorderRadius.circular(12),
             ),
-            SizedBox(
-              height: 350,
-              width: 350,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: MobileScanner(
-                  onDetect: (capture) {
-                    final barcodes = capture.barcodes;
-                    for (final barcode in barcodes) {
-                      if (barcode.rawValue != null) {
-                        String code = barcode.rawValue!;
-                        if (_storeDatabase.containsKey(code)) {
-                          _addToCart(_storeDatabase[code]!, 'single');
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('الباركود غير مسجل: $code')),
-                          );
-                        }
-                      }
-                    }
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-
-      // 3. شاشة إضافة مادة جديدة (محاكاة لشاشة الإضافة في الكمبيوتر)
-      SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('إضافة مادة جديدة للمخزن', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                const SizedBox(height: 12),
-                TextField(controller: _bcController, decoration: const InputDecoration(labelText: 'رقم الباركود')),
-                TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'اسم المادة')),
-                Row(
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: TextField(controller: _uPriceController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'سعر المفرد'))),
-                    const SizedBox(width: 8),
-                    Expanded(child: TextField(controller: _cPriceController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'سعر الكارتون'))),
+                    const Text('المجموع الكلي:', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                    Text('$total د.ع', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
                   ],
                 ),
-                TextField(controller: _ipcController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'عدد القطع في الكارتون')),
-                Row(
-                  children: [
-                    Expanded(child: TextField(controller: _singleStockController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'القطع الحالية'))),
-                    const SizedBox(width: 8),
-                    Expanded(child: TextField(controller: _cartonStockController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الكارتونات الحالية'))),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    onPressed: () {
-                      String code = _bcController.text.trim();
-                      if (code.isNotEmpty) {
-                        setState(() {
-                          _storeDatabase[code] = ProductItem(
-                            barcode: code,
-                            name: _nameController.text,
-                            unitPrice: double.tryParse(_uPriceController.text) ?? 0,
-                            cartonPrice: double.tryParse(_cPriceController.text) ?? 0,
-                            itemsPerCarton: int.tryParse(_ipcController.text) ?? 24,
-                            singleStock: int.tryParse(_singleStockController.text) ?? 0,
-                            cartonStock: int.tryParse(_cartonStockController.text) ?? 0,
-                            category: 'عام',
-                          );
-                        });
-                        _bcController.clear();
-                        _nameController.clear();
-                        _uPriceController.clear();
-                        _cPriceController.clear();
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ المادة بنجاح')));
-                      }
-                    },
-                    child: const Text('حفظ المادة'),
+                ElevatedButton.icon(
+                  onPressed: cart.isEmpty ? null : () {},
+                  icon: const Icon(Icons.print),
+                  label: const Text('حفظ وطباعة'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   ),
-                ),
+                )
               ],
             ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _quickButton(String name, double price) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8.0),
+      child: ActionChip(
+        label: Text('$name ($price)'),
+        backgroundColor: Colors.indigo,
+        labelStyle: const TextStyle(color: Colors.white),
+        onPressed: () => addItem(name, price),
+      ),
+    );
+  }
+}
+
+// 2. شاشة الماسح الضوئي
+class CameraScannerScreen extends StatelessWidget {
+  const CameraScannerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        alignment: Alignment.center,
+        children: [
+          MobileScanner(
+            onDetect: (capture) {
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                debugPrint('Barcode found! ${barcode.rawValue}');
+              }
+            },
+          ),
+          Container(
+            width: 250,
+            height: 250,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.greenAccent, width: 3),
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// 3. شاشة إضافة مادة جديدة
+class AddProductScreen extends StatelessWidget {
+  const AddProductScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Card(
+        color: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('إضافة مادة جديدة للمخزن', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+              const SizedBox(height: 16),
+              _buildTextField('رقم الباركود', Icons.qr_code),
+              _buildTextField('اسم المادة', Icons.shopping_bag),
+              Row(
+                children: [
+                  Expanded(child: _buildTextField('سعر المفرد', Icons.attach_money)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildTextField('سعر الكارتون', Icons.inventory_2)),
+                ],
+              ),
+              Row(
+                children: [
+                  Expanded(child: _buildTextField('عدد القطع بالكارتون', Icons.format_list_numbered)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildTextField('الكمية الحالية', Icons.numbers)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {},
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  child: const Text('حفظ المادة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              )
+            ],
           ),
         ),
       ),
-    ];
+    );
+  }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('نظام الكاشير والمخازن الذكي (موبايل)'),
-        centerTitle: true,
-      ),
-      body: pages[_selectedTab],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedTab,
-        onDestinationSelected: (idx) => setState(() => _selectedTab = idx),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.point_of_sale), label: 'نقطة البيع'),
-          NavigationDestination(icon: Icon(Icons.camera_alt), label: 'الماسح الكاميرا'),
-          NavigationDestination(icon: Icon(Icons.add_box), label: 'إضافة مادة'),
-        ],
+  Widget _buildTextField(String label, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: TextField(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 20, color: Colors.grey),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          filled: true,
+          fillColor: const Color(0xFF2A2A2A),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        ),
       ),
     );
   }
