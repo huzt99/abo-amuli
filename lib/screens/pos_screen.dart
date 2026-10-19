@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 
 class PosScreen extends StatefulWidget {
-  const PosScreen({Key? key}) : super(key: key);
+  const PosScreen({super.key});
 
   @override
-  _PosScreenState createState() => _PosScreenState();
+  State<PosScreen> createState() => _PosScreenState();
 }
 
 class _PosScreenState extends State<PosScreen> {
   List<Map<String, dynamic>> _touchProducts = [];
-  final List<Map<String, dynamic>> cartItems = [];
-  double _totalAmount = 0.0;
+  final List<Map<String, dynamic>> _cart = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -19,164 +19,202 @@ class _PosScreenState extends State<PosScreen> {
     _loadTouchProducts();
   }
 
-  // جلب المواد المخزنة والتي تظهر في اللمس من قاعدة البيانات
   Future<void> _loadTouchProducts() async {
-    final products = await DatabaseHelper.instance.getAllProducts();
+    final products = await DatabaseHelper.instance.getTouchProducts();
     setState(() {
-      _touchProducts = products.where((p) => p['show_in_touch'] == 1).toList();
+      _touchProducts = products;
+      _isLoading = false;
     });
   }
 
-  // إضافة المادة إلى سلة المبيعات عند النقر عليها
+  // إضافة منتج للسلة
   void _addToCart(Map<String, dynamic> product) {
     setState(() {
-      int index = cartItems.indexWhere((item) => item['id'] == product['id']);
-      if (index != -1) {
-        cartItems[index]['qty'] += 1;
-        cartItems[index]['total'] = cartItems[index]['qty'] * cartItems[index]['sale_price'];
+      int index = _cart.indexWhere((item) => item['id'] == product['id']);
+      if (index >= 0) {
+        _cart[index]['cart_qty'] += 1.0;
       } else {
-        cartItems.add({
+        _cart.add({
           'id': product['id'],
           'name': product['name'],
-          'qty': 1,
-          'sale_price': product['sale_price'],
-          'total': product['sale_price'],
+          'price': product['price'],
+          'cart_qty': 1.0,
         });
       }
-      _calculateTotal();
     });
   }
 
-  // حساب المجموع الكلي للفاتورة
-  void _calculateTotal() {
-    _totalAmount = 0.0;
-    for (var item in cartItems) {
-      _totalAmount += item['total'];
+  // حساب المجموع الكلي
+  double get _cartTotal {
+    double total = 0;
+    for (var item in _cart) {
+      total += (item['price'] as double) * (item['cart_qty'] as double);
     }
+    return total;
   }
 
-  // حذف مادة من السلة
-  void _removeFromCart(int index) {
-    setState(() {
-      cartItems.removeAt(index);
-      _calculateTotal();
-    });
+  // إتمام عملية البيع
+  Future<void> _checkout() async {
+    if (_cart.isEmpty) return;
+
+    try {
+      await DatabaseHelper.instance.completeSale(_cart, _cartTotal);
+      setState(() {
+        _cart.clear();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت عملية البيع بنجاح وتوليد الفاتورة!')),
+      );
+      _loadTouchProducts(); // تحديث المخزون
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('حدث خطأ: $e')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      appBar: AppBar(
+        title: const Text('نقطة البيع (POS)'),
+        backgroundColor: const Color(0xFF1E293B),
+      ),
       body: Row(
         children: [
-          // ==========================================
-          // القسم الأيسر: سلة المبيعات، الفاتورة، وأزرار التحكم
-          // ==========================================
+          // القسم الأيمن: أزرار اللمس للمنتجات
           Expanded(
-            flex: 4,
+            flex: 3,
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _touchProducts.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'لا توجد مواد مضافة لعرضها في أزرار اللمس.\nقم بإضافة مواد جديدة وفعل خيار "إظهار في أزرار اللمس".',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey, fontSize: 16),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: GridView.builder(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                            childAspectRatio: 1.1,
+                          ),
+                          itemCount: _touchProducts.length,
+                          itemBuilder: (context, index) {
+                            final product = _touchProducts[index];
+                            return InkWell(
+                              onTap: () => _addToCart(product),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.blue.shade200),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      product['name'],
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Color(0xFF1E293B),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${product['price']} دينار',
+                                      style: const TextStyle(
+                                        color: Colors.green,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                    Text(
+                                      'متوفر: ${product['quantity']}',
+                                      style: const TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 10,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+          ),
+
+          // القسم الأيسر: سلة المبيعات والفاتورة
+          Expanded(
+            flex: 2,
             child: Container(
-              color: Colors.white,
+              color: Colors.grey.shade100,
               child: Column(
                 children: [
-                  // شريط معلومات الزبون والمخزن العلوي
                   Container(
-                    padding: const EdgeInsets.all(8.0),
-                    color: const Color(0xFFE2E8F0),
-                    child: Row(
+                    padding: const EdgeInsets.all(12),
+                    color: Colors.grey.shade200,
+                    child: const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: const [
-                        Row(
-                          children: [
-                            Icon(Icons.store, size: 20),
-                            SizedBox(width: 8),
-                            Text('مخزن 1', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                          ],
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                          child: Text('زبون نقدي', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                        ),
+                      children: [
+                        Text('المادة', style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text('الكمية والسعر', style: TextStyle(fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
-
-                  // قائمة المواد المضافة للفاتورة
                   Expanded(
-                    child: cartItems.isEmpty
+                    child: _cart.isEmpty
                         ? const Center(
                             child: Text(
                               'السلة فارغة\nاختر مادة من الأزرار الجانبية',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey, fontFamily: 'Cairo'),
+                              style: TextStyle(color: Colors.grey),
                             ),
                           )
                         : ListView.builder(
-                            itemCount: cartItems.length,
+                            itemCount: _cart.length,
                             itemBuilder: (context, index) {
-                              final item = cartItems[index];
-                              return Container(
-                                decoration: BoxDecoration(
-                                  border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-                                ),
-                                child: ListTile(
-                                  leading: IconButton(
-                                    icon: const Icon(Icons.close, color: Colors.red),
-                                    onPressed: () => _removeFromCart(index),
-                                  ),
-                                  title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                                  subtitle: Text('العدد: ${item['qty']} | السعر: ${item['sale_price']} د.ع', style: const TextStyle(fontFamily: 'Cairo')),
-                                  trailing: Text('${item['total']} د.ع', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue, fontFamily: 'Cairo')),
+                              final item = _cart[index];
+                              return ListTile(
+                                title: Text(item['name'], style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                subtitle: Text('${item['price']} × ${item['cart_qty']}'),
+                                trailing: Text(
+                                  '${(item['price'] * item['cart_qty'])} د',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
                                 ),
                               );
                             },
                           ),
                   ),
-
-                  // شريط إجمالي الفاتورة
                   Container(
                     padding: const EdgeInsets.all(16),
-                    color: const Color(0xFF0F172A),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    color: Colors.white,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text('مجموع القائمة', style: TextStyle(color: Colors.white, fontSize: 16, fontFamily: 'Cairo')),
-                        Text('$_totalAmount دينار', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cairo')),
-                      ],
-                    ),
-                  ),
-
-                  // أزرار التحكم السفلية
-                  SizedBox(
-                    height: 60,
-                    child: Row(
-                      children: [
-                        _buildBottomActionButton('إلغاء', const Color(0xFFEF4444), () {
-                          setState(() {
-                            cartItems.clear();
-                            _calculateTotal();
-                          });
-                        }),
-                        _buildBottomActionButton('طباعة', const Color(0xFF475569), () {}),
-                        _buildBottomActionButton('طريقة دفع', const Color(0xFF0284C7), () {}),
-                        _buildBottomActionButton('إرجاع بيع', const Color(0xFF3B82F6), () {}),
-                        
-                        // زر بيع المحدث والمربوط بقاعدة البيانات
-                        _buildBottomActionButton('بيع', const Color(0xFF2563EB), () async {
-                          if (cartItems.isNotEmpty) {
-                            await DatabaseHelper.instance.insertInvoice({
-                              'total_amount': _totalAmount,
-                              'date_time': DateTime.now().toString().substring(0, 19),
-                            });
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('تم إتمام البيع وحفظ الفاتورة بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
-                            );
-                            setState(() {
-                              cartItems.clear();
-                              _calculateTotal();
-                            });
-                          }
-                        }),
+                        Text(
+                          'المجموع: $_cartTotal دينار',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: _checkout,
+                          child: const Text('إتمام البيع والدفع', style: TextStyle(fontSize: 16, color: Colors.white)),
+                        ),
                       ],
                     ),
                   ),
@@ -184,99 +222,7 @@ class _PosScreenState extends State<PosScreen> {
               ),
             ),
           ),
-
-          // ==========================================
-          // القسم الأيمن: أزرار المواد السريعة
-          // ==========================================
-          Expanded(
-            flex: 6,
-            child: Column(
-              children: [
-                Container(
-                  height: 55,
-                  color: const Color(0xFF1E293B),
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: const Text(
-                    'أزرار المواد السريعة (تظهر المواد المضافة تلقائياً)',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(10.0),
-                    child: _touchProducts.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'لا توجد مواد مضافة لعرضها في أزرار اللمس.\nقم بإضافة مواد جديدة من لوحة التحكم.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 16, color: Colors.grey, fontFamily: 'Cairo'),
-                            ),
-                          )
-                        : GridView.builder(
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 4,
-                              crossAxisSpacing: 10,
-                              mainAxisSpacing: 10,
-                              childAspectRatio: 1.6,
-                            ),
-                            itemCount: _touchProducts.length,
-                            itemBuilder: (context, index) {
-                              final product = _touchProducts[index];
-                              return Card(
-                                color: const Color(0xFF1E293B),
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                child: InkWell(
-                                  onTap: () => _addToCart(product),
-                                  child: Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(4.0),
-                                      child: Text(
-                                        '${product['name']}\n(${product['sale_price']} د.ع)',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
-                                          fontFamily: 'Cairo',
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildBottomActionButton(String title, Color bgColor, VoidCallback onTap) {
-    return Expanded(
-      child: Material(
-        color: bgColor,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            alignment: Alignment.center,
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                fontFamily: 'Cairo',
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
