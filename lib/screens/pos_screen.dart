@@ -29,7 +29,6 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  // البحث عن المنتج بالباركود وإضافته
   Future<void> _scanAndAddBarcode(String barcode) async {
     if (barcode.trim().isEmpty) return;
     final allProducts = await DatabaseHelper.instance.getAllProducts();
@@ -52,7 +51,6 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  // فتح نافذة الكاميرا لفحص الباركود
   void _openCameraScanner() {
     showModalBottomSheet(
       context: context,
@@ -209,7 +207,7 @@ class _PosScreenState extends State<PosScreen> {
                               child: Padding(
                                 padding: const EdgeInsets.all(20.0),
                                 child: Text(
-                                  'لا توجد مواد مضافة لأزرار اللمس.\nيمكنك إضافة مواد جديدة أو استخدام فحص الباركود.',
+                                  'لا توجد مواد مضافة لأزرار اللمس.\nأضف مواد من شاشة "إضافة منتج" وفعل خيار الإظهار.',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                                 ),
