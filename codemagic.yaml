@@ -5,26 +5,6 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      - name: Recreate Android Project with V2 Embedding
-        script: |
-          rm -rf android
-          flutter create . --org com.store.app --project-name smart_store --platforms android
-          python3 -c "
-          import os
-          paths = ['android/app/build.gradle.kts', 'android/app/build.gradle']
-          for path in paths:
-              if os.path.exists(path):
-                  with open(path, 'r') as f:
-                      content = f.read()
-                  content = content.replace('flutter.compileSdkVersion', '34')
-                  content = content.replace('compileSdk = flutter.compileSdkVersion', 'compileSdk = 34')
-                  content = content.replace('compileSdkVersion flutter.compileSdkVersion', 'compileSdkVersion 34')
-                  content = content.replace('compileSdk 33', 'compileSdk 34')
-                  content = content.replace('flutter.minSdkVersion', '21')
-                  with open(path, 'w') as f:
-                      f.write(content)
-                  break
-          "
       - name: Build APK
         script: |
           flutter build apk --release
