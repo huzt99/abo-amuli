@@ -4,6 +4,7 @@ workflows:
     instance_type: mac_mini_m1
     environment:
       flutter: stable
+      java: 17
     scripts:
       - name: Build APK
         script: |
