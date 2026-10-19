@@ -24,11 +24,6 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Recreate Android Project
-        run: |
-          rm -rf android
-          flutter create . --org com.store.app --project-name smart_store --platforms android
-
       - name: Get Dependencies
         run: flutter pub get
 
@@ -55,9 +50,6 @@ jobs:
 
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
-
-      - name: Recreate Windows Project
-        run: flutter create . --platforms windows
 
       - name: Get Dependencies
         run: flutter pub get
