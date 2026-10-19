@@ -103,7 +103,6 @@ class _PosScreenState extends State<PosScreen> {
                   // قائمة المواد المضافة للفاتورة
                   Expanded(
                     child: cartItems.isEmpty
-                        .printEmptyCart() // Fallback check or direct widget:
                         ? const Center(
                             child: Text(
                               'السلة فارغة\nاختر مادة من الأزرار الجانبية',
@@ -160,10 +159,17 @@ class _PosScreenState extends State<PosScreen> {
                         _buildBottomActionButton('طباعة', const Color(0xFF475569), () {}),
                         _buildBottomActionButton('طريقة دفع', const Color(0xFF0284C7), () {}),
                         _buildBottomActionButton('إرجاع بيع', const Color(0xFF3B82F6), () {}),
-                        _buildBottomActionButton('بيع', const Color(0xFF2563EB), () {
+                        
+                        // زر بيع المحدث والمربوط بقاعدة البيانات
+                        _buildBottomActionButton('بيع', const Color(0xFF2563EB), () async {
                           if (cartItems.isNotEmpty) {
+                            await DatabaseHelper.instance.insertInvoice({
+                              'total_amount': _totalAmount,
+                              'date_time': DateTime.now().toString().substring(0, 19),
+                            });
+
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('تم إتمام البيع بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
+                              const SnackBar(content: Text('تم إتمام البيع وحفظ الفاتورة بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
                             );
                             setState(() {
                               cartItems.clear();
@@ -180,7 +186,7 @@ class _PosScreenState extends State<PosScreen> {
           ),
 
           // ==========================================
-          // القسم الأيمن: أزرار المواد السريعة (المستخرجة من قاعدة البيانات)
+          // القسم الأيمن: أزرار المواد السريعة
           // ==========================================
           Expanded(
             flex: 6,
@@ -274,9 +280,4 @@ class _PosScreenState extends State<PosScreen> {
       ),
     );
   }
-}
-
-// Extension helper for safe empty check
-extension on List {
-  bool printEmptyCart() => isEmpty;
 }
