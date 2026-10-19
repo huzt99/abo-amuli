@@ -1,18 +1,18 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.store.app">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- أذونات الكاميرا للماسح الضوئي والبلوتوث للطابعة الحرارية -->
+    <!-- أذونات الكاميرا لقراءة الباركود -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- أذونات الإنترنت والإنترنت المحلي -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
-        android:label="smart_store"
+        android:label="Smart Store POS"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -24,15 +24,15 @@
             
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
+              android:value="@style/NormalTheme"
               />
+            
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        
-        <!-- تفعيل نظام الربط الحديث v2 إجبارياً -->
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
