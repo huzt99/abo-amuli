@@ -10,98 +10,121 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9), // خلفية هادئة وعصرية
+      backgroundColor: const Color(0xFF0F172A), // خلفية داكنة فخمة (Dark Modern Theme)
       appBar: AppBar(
         title: const Text(
-          'نظام المبيعات والمخازن POS',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+          'نظام المبيعات والمخازن المركزي',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
         ),
         centerTitle: true,
-        backgroundColor: const Color(0xFF1E293B), // أزرق داكن احترافي
-        elevation: 2,
+        backgroundColor: const Color(0xFF1E293B),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: GridView.count(
-          crossAxisCount: 3, // 3 أعمدة تناسب الشاشات والموبايل
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDashboardCard(
-              context,
-              title: 'نقطة بيع',
-              icon: Icons.point_of_sale,
-              color: const Color(0xFF2563EB), // أزرق ممتاز
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PosScreen()),
+            // بطاقة ترحيبية علوية فخمة
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3B82F6), Color(0xFF1D4ED8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.storefront_rounded, size: 40, color: Colors.white),
+                  SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'مرحباً بك، أبو مؤمل',
+                        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'النظام جاهز لإدارة المبيعات بكفاءة عالية',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            _buildDashboardCard(
-              context,
-              title: 'إضافة منتج',
-              icon: Icons.add_box_rounded,
-              color: const Color(0xFF059669), // أخضر زاهي
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AddProductScreen()),
+            const SizedBox(height: 20),
+            const Text(
+              'العمليات الرئيسية',
+              style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            // شبكة الأزرار الاحترافية
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 2, // عمودين بتصميم واسع وبارز يملأ العين
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                childAspectRatio: 1.3,
+                children: [
+                  _buildProCard(
+                    context,
+                    title: 'نقطة بيع (POS)',
+                    subtitle: 'شاشة البيع السريع',
+                    icon: Icons.point_of_sale_rounded,
+                    gradient: const [Color(0xFF10B981), Color(0xFF059669)],
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PosScreen()),
+                    ),
+                  ),
+                  _buildProCard(
+                    context,
+                    title: 'إضافة منتج',
+                    subtitle: 'إدخال مادة جديدة للمخزن',
+                    icon: Icons.add_box_rounded,
+                    gradient: const [Color(0xFF6366F1), Color(0xFF4F46E5)],
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AddProductScreen()),
+                    ),
+                  ),
+                  _buildProCard(
+                    context,
+                    title: 'قائمة المواد',
+                    subtitle: 'إدارة المخزن والكميات',
+                    icon: Icons.inventory_2_rounded,
+                    gradient: const [Color(0xFFF59E0B), Color(0xFFD97706)],
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ProductListScreen()),
+                    ),
+                  ),
+                  _buildProCard(
+                    context,
+                    title: 'كشف المبيعات',
+                    subtitle: 'تقارير الفواتير والأرباح',
+                    icon: Icons.receipt_long_rounded,
+                    gradient: const [Color(0xFFEC4899), Color(0xFFDB2777)],
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SalesReportScreen()),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'قائمة المواد',
-              icon: Icons.inventory_2,
-              color: const Color(0xFFD97706), // برتقالي مريح
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProductListScreen()),
-              ),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'كشف مبيعات',
-              icon: Icons.receipt_long,
-              color: const Color(0xFF7C3AED), // بنفسجي ملفت
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SalesReportScreen()),
-              ),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'عرض أردسة',
-              icon: Icons.account_balance_wallet,
-              color: const Color(0xFF475569),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'سند قبض',
-              icon: Icons.download_rounded,
-              color: const Color(0xFF0284C7),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'سند دفع',
-              icon: Icons.upload_rounded,
-              color: const Color(0xFFE11D48),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'سند صرف',
-              icon: Icons.payments,
-              color: const Color(0xFF4B5563),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'قائمة بيع',
-              icon: Icons.shopping_bag,
-              color: const Color(0xFF0891B2),
-            ),
-            _buildDashboardCard(
-              context,
-              title: 'المطابقة',
-              icon: Icons.balance,
-              color: const Color(0xFF65A30D),
             ),
           ],
         ),
@@ -109,51 +132,64 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDashboardCard(
+  Widget _buildProCard(
     BuildContext context, {
     required String title,
+    required String subtitle,
     required IconData icon,
-    required Color color,
+    required List<Color> gradient,
     VoidCallback? onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: gradient.first.withOpacity(0.4),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
               ),
-              child: Icon(icon, size: 28, color: color),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 32, color: Colors.white),
+                const Spacer(),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1E293B),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
