@@ -49,10 +49,16 @@ class DatabaseHelper {
     ''');
   }
 
-  // إجبار إضافة منتج جديد
+  // إدخال منتج جديد
   Future<int> insertProduct(Map<String, dynamic> row) async {
     final db = await database;
     return await db.insert('products', row);
+  }
+
+  // حذف منتج
+  Future<int> deleteProduct(int id) async {
+    final db = await database;
+    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
   }
 
   // جلب المنتجات التي تظهر في أزرار اللمس الرئيسية
@@ -99,8 +105,13 @@ class DatabaseHelper {
     });
   }
 
-  // جلب كشف المبيعات والفواتير
+  // جلب الفواتير لكشف المبيعات
   Future<List<Map<String, dynamic>>> getInvoices() async {
+    final db = await database;
+    return await db.query('invoices', orderBy: 'id DESC');
+  }
+
+  Future<List<Map<String, dynamic>>> getAllInvoices() async {
     final db = await database;
     return await db.query('invoices', orderBy: 'id DESC');
   }
