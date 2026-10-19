@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'pos_screen.dart';
 import 'add_product_screen.dart';
+import 'product_list_screen.dart'; // تم استدعاء شاشة عرض المواد هنا
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -57,6 +58,8 @@ class DashboardScreen extends StatelessWidget {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
                   } else if (item['title'] == 'إضافة مادة') {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductScreen()));
+                  } else if (item['title'] == 'عرض المواد') {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductListScreen()));
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('تم النقر على قسم: ${item['title']}', style: const TextStyle(fontFamily: 'Cairo'))),
