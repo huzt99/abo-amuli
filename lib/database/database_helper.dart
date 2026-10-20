@@ -9,7 +9,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('pos_system.db');
+    _database = await _initDB('pos_system_v2.db');
     return _database!;
   }
 
@@ -20,11 +20,11 @@ class DatabaseHelper {
     return await openDatabase(
       path,
       version: 1,
-      onCreate: _createDB,
+      onCreate: _onCreate,
     );
   }
 
-  Future _createDB(Database db, int version) async {
+  Future<void> _onCreate(Database db, int version) async {
     // جدول المنتجات
     await db.execute('''
       CREATE TABLE products (
@@ -32,87 +32,92 @@ class DatabaseHelper {
         barcode TEXT,
         name TEXT NOT NULL,
         quantity REAL NOT NULL,
-        price REAL NOT NULL,
-        cost REAL,
-        expiry TEXT,
-        show_in_touch INTEGER NOT NULL
+        buy_price REAL NOT NULL,
+        sell_price REAL NOT NULL,
+        expiry_date TEXT,
+        alert_days INTEGER,
+        is_quick INTEGER DEFAULT 0
       )
     ''');
 
-    // جدول الفواتير (المبيعات)
+    // جدول الفواتير
     await db.execute('''
       CREATE TABLE invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
         total_amount REAL NOT NULL,
-        timestamp TEXT NOT NULL
+        items_json TEXT NOT NULL,
+        cashier_name TEXT
       )
     ''');
-  }
 
-  // إدخال منتج جديد
-  Future<int> insertProduct(Map<String, dynamic> row) async {
-    final db = await database;
-    return await db.insert('products', row);
-  }
+    // جدول الحسابات والصلاحيات (مدير / كاشير)
+    await db.execute('''
+      CREATE TABLE users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL
+      )
+    ''');
 
-  // حذف منتج
-  Future<int> deleteProduct(int id) async {
-    final db = await database;
-    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
-  }
-
-  // جلب المنتجات التي تظهر في أزرار اللمس الرئيسية
-  Future<List<Map<String, dynamic>>> getTouchProducts() async {
-    final db = await database;
-    return await db.query('products', where: 'show_in_touch = ?', whereArgs: [1]);
-  }
-
-  // جلب كل المنتجات للمخزن
-  Future<List<Map<String, dynamic>>> getAllProducts() async {
-    final db = await database;
-    return await db.query('products');
-  }
-
-  // تسجيل فاتورة جديدة وتحديث المخزون
-  Future<void> completeSale(List<Map<String, dynamic>> cartItems, double totalAmount) async {
-    final db = await database;
-    await db.transaction((txn) async {
-      // إدخال الفاتورة
-      await txn.insert('invoices', {
-        'total_amount': totalAmount,
-        'timestamp': DateTime.now().toString(),
-      });
-
-      // خصم الكميات من المخزون
-      for (var item in cartItems) {
-        int id = item['id'];
-        double soldQty = item['cart_qty'];
-        
-        // جلب الكمية الحالية
-        var productList = await txn.query('products', where: 'id = ?', whereArgs: [id]);
-        if (productList.isNotEmpty) {
-          double currentQty = productList.first['quantity'] as double;
-          double newQty = currentQty - soldQty;
-          
-          await txn.update(
-            'products',
-            {'quantity': newQty < 0 ? 0 : newQty},
-            where: 'id = ?',
-            whereArgs: [id],
-          );
-        }
-      }
+    // إضافة الحسابات الافتراضية عند أول تشغيل
+    await db.insert('users', {
+      'username': 'admin',
+      'password': '123',
+      'role': 'admin'
+    });
+    
+    await db.insert('users', {
+      'username': 'cashier',
+      'password': '111',
+      'role': 'cashier'
     });
   }
 
-  // جلب الفواتير لكشف المبيعات
-  Future<List<Map<String, dynamic>>> getInvoices() async {
-    final db = await database;
-    return await db.query('invoices', orderBy: 'id DESC');
+  // عمليات المنتجات
+  Future<int> insertProduct(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('products', row);
+  }
+
+  Future<List<Map<String, dynamic>>> getAllProducts() async {
+    final db = await instance.database;
+    return await db.query('products', orderBy: 'id DESC');
+  }
+
+  Future<List<Map<String, dynamic>>> getQuickProducts() async {
+    final db = await instance.database;
+    return await db.query('products', where: 'is_quick = 1');
+  }
+
+  Future<int> deleteProduct(int id) async {
+    final db = await instance.database;
+    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // تسجيل الدخول والتحقق من الصلاحيات
+  Future<Map<String, dynamic>?> loginUser(String username, String password) async {
+    final db = await instance.database;
+    final results = await db.query(
+      'users',
+      where: 'username = ? AND password = ?',
+      whereArgs: [username, password],
+    );
+    if (results.isNotEmpty) {
+      return results.first;
+    }
+    return null;
+  }
+
+  // عمليات الفواتير
+  Future<int> insertInvoice(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('invoices', row);
   }
 
   Future<List<Map<String, dynamic>>> getAllInvoices() async {
-    final db = await database;
+    final db = await instance.database;
     return await db.query('invoices', orderBy: 'id DESC');
   }
 }
