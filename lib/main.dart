@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import 'screens/dashboard_screen.dart'; // استدعاء لوحة التحكم
+import 'screens/activation_screen.dart';
 
 void main() {
-  runApp(const PosSystemApp());
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
 }
 
-class PosSystemApp extends StatelessWidget {
-  const PosSystemApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'نظام نقاط البيع - POS',
+      title: 'نظام إدارة المبيعات والمخازن',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: 'Cairo',
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0F172A),
+        fontFamily: 'Roboto',
       ),
-      // جعل لوحة التحكم هي الواجهة الرئيسية عند بدء التطبيق
-      home: const DashboardScreen(),
+      home: const ActivationScreen(),
     );
   }
 }
