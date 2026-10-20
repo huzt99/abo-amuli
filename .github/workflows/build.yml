@@ -39,11 +39,11 @@ jobs:
         with:
           flutter-version: '3.19.x'
           channel: 'stable'
+      - name: Install Visual Studio 2019 Build Tools
+        run: |
+          choco install visualstudio2019-workload-vctools -y
       - name: Create Windows Platform
         run: flutter create . --platforms=windows --project-name=pos_system
-      - name: Force VS 2022 for Windows Build
-        run: |
-          echo "CMAKE_GENERATOR=Visual Studio 17 2022" >> $env:GITHUB_ENV
       - run: flutter pub get
       - run: flutter build windows --release
       - uses: actions/upload-artifact@v4
