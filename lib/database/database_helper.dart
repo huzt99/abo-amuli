@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'dart:convert';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -9,7 +10,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('pos_system_v3.db');
+    _database = await _initDB('pos_system_v4.db');
     return _database!;
   }
 
@@ -72,9 +73,43 @@ class DatabaseHelper {
     return await db.query('products', orderBy: 'id DESC');
   }
 
-  Future<List<Map<String, dynamic>>> getQuickProducts() async {
+  // الدوال المطلوبة بواسطة شاشة الـ POS
+  Future<List<Map<String, dynamic>>> getTouchProducts() async {
     final db = await instance.database;
     return await db.query('products', where: 'is_quick = 1');
+  }
+
+  Future<void> completeSale(List<Map<String, dynamic>> cartItems, double totalAmount) async {
+    final db = await instance.database;
+    
+    // حفظ الفاتورة
+    await db.insert('invoices', {
+      'date': DateTime.now().toString(),
+      'total_amount': totalAmount,
+      'items_json': jsonEncode(cartItems),
+      'cashier_name': 'مدير/كاشير'
+    });
+
+    // خصم الكميات من المخزن
+    for (var item in cartItems) {
+      int id = item['id'];
+      double soldQty = item['sold_qty'] ?? 1.0;
+      
+      // جلب الكمية الحالية
+      var result = await db.query('products', where: 'id = ?', whereArgs: [id]);
+      if (result.isNotEmpty) {
+        double currentQty = result.first['quantity'] as double;
+        double newQty = currentQty - soldQty;
+        if (newQty < 0) newQty = 0;
+
+        await db.update(
+          'products',
+          {'quantity': newQty},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
+      }
+    }
   }
 
   Future<int> deleteProduct(int id) async {
@@ -91,11 +126,6 @@ class DatabaseHelper {
     );
     if (results.isNotEmpty) return results.first;
     return null;
-  }
-
-  Future<int> insertInvoice(Map<String, dynamic> row) async {
-    final db = await instance.database;
-    return await db.insert('invoices', row);
   }
 
   Future<List<Map<String, dynamic>>> getAllInvoices() async {
