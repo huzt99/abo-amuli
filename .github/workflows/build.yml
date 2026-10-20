@@ -39,6 +39,9 @@ jobs:
         with:
           flutter-version: '3.19.x'
           channel: 'stable'
+      - name: Install MSVC Tools for Windows
+        run: |
+          choco install visualstudio2022-workload-vctools --include-optional -y
       - name: Create Windows Platform
         run: flutter create . --platforms=windows --project-name=pos_system
       - run: flutter pub get
