@@ -2,170 +2,134 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 
 class AddProductScreen extends StatefulWidget {
-  const AddProductScreen({Key? key}) : super(key: key);
+  const AddProductScreen({super.key});
 
   @override
-  _AddProductScreenState createState() => _AddProductScreenState();
+  State<AddProductScreen> createState() => _AddProductScreenState();
 }
 
 class _AddProductScreenState extends State<AddProductScreen> {
-  final _formKey = GlobalKey<FormState>();
-  
-  // متحكمات الحقول
-  final TextEditingController _barcodeController = TextEditingController();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _qtyController = TextEditingController();
-  final TextEditingController _buyPriceController = TextEditingController();
-  final TextEditingController _salePriceController = TextEditingController();
-  final TextEditingController _expiryDateController = TextEditingController();
-  final TextEditingController _alertPeriodController = TextEditingController();
+  final _barcodeController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _qtyController = TextEditingController();
+  final _buyPriceController = TextEditingController();
+  final _sellPriceController = TextEditingController();
+  final _expiryController = TextEditingController();
+  final _alertController = TextEditingController();
+  bool _isQuick = false;
 
-  bool _showInTouch = true; // خيار إظهار في اللمس
-
-  // دالة الحفظ في قاعدة البيانات
   void _saveProduct() async {
-    if (_formKey.currentState!.validate()) {
-      Map<String, dynamic> row = {
-        'barcode': _barcodeController.text,
-        'name': _nameController.text,
-        'quantity': int.parse(_qtyController.text),
-        'buy_price': double.parse(_buyPriceController.text),
-        'sale_price': double.parse(_salePriceController.text),
-        'expiry_date': _expiryDateController.text,
-        'alert_period': int.tryParse(_alertPeriodController.text) ?? 0,
-        'show_in_touch': _showInTouch ? 1 : 0,
-      };
-
-      try {
-        await DatabaseHelper.instance.insertProduct(row);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم حفظ المادة بنجاح', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.green),
-        );
-        _clearForm();
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: الباركود موجود مسبقاً أو بيانات غير صحيحة', style: TextStyle(fontFamily: 'Cairo')), backgroundColor: Colors.red),
-        );
-      }
+    if (_nameController.text.isEmpty ||
+        _qtyController.text.isEmpty ||
+        _sellPriceController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرجاء إدخال اسم المادة والكمية وسعر البيع')),
+      );
+      return;
     }
-  }
 
-  void _clearForm() {
-    _barcodeController.clear();
-    _nameController.clear();
-    _qtyController.clear();
-    _buyPriceController.clear();
-    _salePriceController.clear();
-    _expiryDateController.clear();
-    _alertPeriodController.clear();
+    // معالجة الباركود التلقائي للمواد التي بدون باركود (مثل الطحين والسكر والكرزات)
+    String barcode = _barcodeController.text.trim();
+    if (barcode.isEmpty || barcode.contains('بدون')) {
+      barcode = 'NO_BC_${DateTime.now().millisecondsSinceEpoch}';
+    }
+
+    Map<String, dynamic> row = {
+      'barcode': barcode,
+      'name': _nameController.text.trim(),
+      'quantity': double.tryParse(_qtyController.text) ?? 0.0,
+      'buy_price': double.tryParse(_buyPriceController.text) ?? 0.0,
+      'sell_price': double.tryParse(_sellPriceController.text) ?? 0.0,
+      'expiry_date': _expiryController.text.trim(),
+      'alert_days': int.tryParse(_alertController.text) ?? 0,
+      'is_quick': _isQuick ? 1 : 0,
+    };
+
+    try {
+      await DatabaseHelper.instance.insertProduct(row);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم حفظ المادة بنجاح وإضافتها للمخزن!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // تفريغ الحقول التلقائي بعد الحفظ
+      _barcodeController.clear();
+      _nameController.clear();
+      _qtyController.clear();
+      _buyPriceController.clear();
+      _sellPriceController.clear();
+      _expiryController.clear();
+      _alertController.clear();
+      setState(() => _isQuick = false);
+
+      // العودة للشاشة الرئيسية لتحديث القوائم
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطأ في الحفظ: $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('إضافة مادة جديدة للمخزن', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('إضافة مادة جديدة للمخزن'),
         backgroundColor: const Color(0xFF1E293B),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            children: [
-              // حقل الباركود
-              TextFormField(
-                controller: _barcodeController,
-                decoration: const InputDecoration(labelText: 'الباركود (قم بالمسح أو الإدخال)', border: OutlineInputBorder()),
-                validator: (value) => value!.isEmpty ? 'يرجى إدخال الباركود' : null,
-              ),
-              const SizedBox(height: 12),
-
-              // اسم المادة
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(labelText: 'اسم المادة', border: OutlineInputBorder()),
-                validator: (value) => value!.isEmpty ? 'يرجى إدخال اسم المادة' : null,
-              ),
-              const SizedBox(height: 12),
-
-              // العدد (الكمية)
-              TextFormField(
-                controller: _qtyController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'العدد (الكمية المتوفرة)', border: OutlineInputBorder()),
-                validator: (value) => value!.isEmpty ? 'يرجى إدخال الكمية' : null,
-              ),
-              const SizedBox(height: 12),
-
-              // سعر الشراء وسعر البيع
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _buyPriceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'سعر الشراء', border: OutlineInputBorder()),
-                      validator: (value) => value!.isEmpty ? 'أدخل سعر الشراء' : null,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _salePriceController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'سعر البيع للزبون', border: OutlineInputBorder()),
-                      validator: (value) => value!.isEmpty ? 'أدخل سعر البيع' : null,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // تاريخ انتهاء الصلاحية وفترة التنبيه
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _expiryDateController,
-                      decoration: const InputDecoration(labelText: 'تاريخ انتهاء الصلاحية (Expiry)', border: OutlineInputBorder(), hintText: 'YYYY-MM-DD'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _alertPeriodController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'فترة التنبيه (بالأيام)', border: OutlineInputBorder(), hintText: 'مثلاً 10 أيام'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // خيار الإظهار في شاشة اللمس
-              CheckboxListTile(
-                title: const Text('إظهار في أزرار اللمس السريعة الرئيسية'),
-                value: _showInTouch,
-                onChanged: (bool? value) {
-                  setState(() {
-                    _showInTouch = value ?? true;
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
-
-              // زر الحفظ
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
+        child: Column(
+          children: [
+            _buildTextField(_barcodeController, 'الباركود (اتركه فارغاً إذا كانت المادة بدون باركود)'),
+            _buildTextField(_nameController, 'اسم المادة (مثال: طحين، سكر، تمن)'),
+            _buildTextField(_qtyController, 'العدد / الكمية (مثال: 80 كيلو أو قطعة)', isNumber: true),
+            _buildTextField(_buyPriceController, 'سعر الشراء', isNumber: true),
+            _buildTextField(_sellPriceController, 'سعر البيع للزبون', isNumber: true),
+            _buildTextField(_expiryController, 'تاريخ انتهاء الصلاحية (YYYY-MM-DD)'),
+            _buildTextField(_alertController, 'فترة التنبيه بالبلوم (أيام)', isNumber: true),
+            CheckboxListTile(
+              title: const Text('إظهار في أزرار اللمس السريعة الرئيسية', style: TextStyle(color: Colors.white)),
+              value: _isQuick,
+              onChanged: (val) => setState(() => _isQuick = val ?? false),
+              activeColor: const Color(0xFF3B82F6),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
                 onPressed: _saveProduct,
-                child: const Text('حفظ المادة', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6)),
+                child: const Text('حفظ المادة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
-            ],
-          ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label, {bool isNumber = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: TextField(
+        controller: controller,
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: const TextStyle(color: Colors.slate),
+          filled: true,
+          fillColor: const Color(0xFF1E293B),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
     );
