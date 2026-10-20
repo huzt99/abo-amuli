@@ -15,8 +15,9 @@ jobs:
         with:
           flutter-version: '3.19.x'
           channel: 'stable'
+      - name: Create Android Platform
+        run: flutter create . --platforms=android --project-name=pos_system
       - run: flutter pub get
-      # ضبط الحد الأدنى لإصدار الأندرويد ليوافق مكتبة الكاميرا (minSdkVersion 21)
       - name: Update minSdk to 21
         run: |
           BUILD_GRADLE="android/app/build.gradle"
@@ -38,11 +39,10 @@ jobs:
         with:
           flutter-version: '3.19.x'
           channel: 'stable'
-      - name: Enable Windows Desktop & Build
-        run: |
-          flutter config --enable-windows-desktop
-          flutter pub get
-          flutter build windows --release
+      - name: Create Windows Platform
+        run: flutter create . --platforms=windows --project-name=pos_system
+      - run: flutter pub get
+      - run: flutter build windows --release
       - uses: actions/upload-artifact@v4
         with:
           name: windows-exe
