@@ -1,7 +1,7 @@
 name: pos_system
-description: "A new Flutter POS and inventory management project."
+description: "Professional Hybrid POS and Inventory Management System"
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.1.0+3
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -14,6 +14,7 @@ dependencies:
   path: ^1.8.3
   mobile_scanner: ^5.0.0
   permission_handler: ^11.3.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
