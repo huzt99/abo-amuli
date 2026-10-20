@@ -9,7 +9,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('pos_system_v2.db');
+    _database = await _initDB('pos_system_v3.db');
     return _database!;
   }
 
@@ -25,7 +25,6 @@ class DatabaseHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // جدول المنتجات
     await db.execute('''
       CREATE TABLE products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +39,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // جدول الفواتير
     await db.execute('''
       CREATE TABLE invoices (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +49,6 @@ class DatabaseHelper {
       )
     ''');
 
-    // جدول الحسابات والصلاحيات (مدير / كاشير)
     await db.execute('''
       CREATE TABLE users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,21 +58,10 @@ class DatabaseHelper {
       )
     ''');
 
-    // إضافة الحسابات الافتراضية عند أول تشغيل
-    await db.insert('users', {
-      'username': 'admin',
-      'password': '123',
-      'role': 'admin'
-    });
-    
-    await db.insert('users', {
-      'username': 'cashier',
-      'password': '111',
-      'role': 'cashier'
-    });
+    await db.insert('users', {'username': 'admin', 'password': '123', 'role': 'admin'});
+    await db.insert('users', {'username': 'cashier', 'password': '111', 'role': 'cashier'});
   }
 
-  // عمليات المنتجات
   Future<int> insertProduct(Map<String, dynamic> row) async {
     final db = await instance.database;
     return await db.insert('products', row);
@@ -96,7 +82,6 @@ class DatabaseHelper {
     return await db.delete('products', where: 'id = ?', whereArgs: [id]);
   }
 
-  // تسجيل الدخول والتحقق من الصلاحيات
   Future<Map<String, dynamic>?> loginUser(String username, String password) async {
     final db = await instance.database;
     final results = await db.query(
@@ -104,13 +89,10 @@ class DatabaseHelper {
       where: 'username = ? AND password = ?',
       whereArgs: [username, password],
     );
-    if (results.isNotEmpty) {
-      return results.first;
-    }
+    if (results.isNotEmpty) return results.first;
     return null;
   }
 
-  // عمليات الفواتير
   Future<int> insertInvoice(Map<String, dynamic> row) async {
     final db = await instance.database;
     return await db.insert('invoices', row);
