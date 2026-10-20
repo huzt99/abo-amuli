@@ -28,7 +28,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
       return;
     }
 
-    // معالجة الباركود التلقائي للمواد التي بدون باركود (مثل الطحين والسكر والكرزات)
+    // توليد باركود تلقائي إذا تركه فارغاً للمواد بدون باركود (طحين، سكر، كرزات...)
     String barcode = _barcodeController.text.trim();
     if (barcode.isEmpty || barcode.contains('بدون')) {
       barcode = 'NO_BC_${DateTime.now().millisecondsSinceEpoch}';
@@ -56,17 +56,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
         ),
       );
 
-      // تفريغ الحقول التلقائي بعد الحفظ
-      _barcodeController.clear();
-      _nameController.clear();
-      _qtyController.clear();
-      _buyPriceController.clear();
-      _sellPriceController.clear();
-      _expiryController.clear();
-      _alertController.clear();
-      setState(() => _isQuick = false);
-
-      // العودة للشاشة الرئيسية لتحديث القوائم
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
@@ -88,15 +77,15 @@ class _AddProductScreenState extends State<AddProductScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            _buildTextField(_barcodeController, 'الباركود (اتركه فارغاً إذا كانت المادة بدون باركود)'),
-            _buildTextField(_nameController, 'اسم المادة (مثال: طحين، سكر، تمن)'),
-            _buildTextField(_qtyController, 'العدد / الكمية (مثال: 80 كيلو أو قطعة)', isNumber: true),
+            _buildTextField(_barcodeController, 'الباركود (اتركه فارغاً للمواد بدون باركود)'),
+            _buildTextField(_nameController, 'اسم المادة (طحين، سكر، تمن...)'),
+            _buildTextField(_qtyController, 'العدد / الكمية (كيلو أو قطعة)', isNumber: true),
             _buildTextField(_buyPriceController, 'سعر الشراء', isNumber: true),
             _buildTextField(_sellPriceController, 'سعر البيع للزبون', isNumber: true),
             _buildTextField(_expiryController, 'تاريخ انتهاء الصلاحية (YYYY-MM-DD)'),
-            _buildTextField(_alertController, 'فترة التنبيه بالبلوم (أيام)', isNumber: true),
+            _buildTextField(_alertController, 'فترة التنبيه بالأيام', isNumber: true),
             CheckboxListTile(
-              title: const Text('إظهار في أزرار اللمس السريعة الرئيسية', style: TextStyle(color: Colors.white)),
+              title: const Text('إظهار في أزرار اللمس السريعة', style: TextStyle(color: Colors.white)),
               value: _isQuick,
               onChanged: (val) => setState(() => _isQuick = val ?? false),
               activeColor: const Color(0xFF3B82F6),
@@ -126,7 +115,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: const TextStyle(color: Colors.slate),
+          labelStyle: const TextStyle(color: Colors.white70),
           filled: true,
           fillColor: const Color(0xFF1E293B),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
