@@ -21,7 +21,7 @@ class ActivationService {
     await prefs.setBool('is_activated', value);
   }
 
-  // --- جلب البيانات السحابية وضمان القراءة ---
+  // --- جلب البيانات السحابية مع تصحيح الهيكل ---
   static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
     try {
       final response = await http.get(
@@ -34,10 +34,11 @@ class ActivationService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data['record'] != null) {
-          var recordUsers = data['record']['users'];
-          if (recordUsers is List) {
-            return recordUsers.map((e) => Map<String, dynamic>.from(e)).toList();
+        if (data != null && data['record'] != null) {
+          var record = data['record'];
+          if (record is Map && record.containsKey('users') && record['users'] is List) {
+            List list = record['users'];
+            return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           }
         }
       }
@@ -47,12 +48,11 @@ class ActivationService {
     return [];
   }
 
-  // --- حفظ طلب زبون جديد سحابياً ومحلياً ---
+  // --- حفظ طلب زبون جديد سحابياً ---
   static Future<bool> registerUserDual({required String username, required String email}) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
       
-      // إزالة أي طلب قديم بنفس الاسم وتحديثه
       users.removeWhere((u) => u['username'] == username);
       users.add({
         'username': username,
@@ -75,7 +75,7 @@ class ActivationService {
     }
   }
 
-  // --- فحص قبول تفعيل الزبون سحابياً ---
+  // --- فحص تفعيل الزبون سحابياً ---
   static Future<bool> checkUserActivationDual(String username) async {
     List<Map<String, dynamic>> users = await fetchUsersFromCloud();
     for (var u in users) {
@@ -87,7 +87,7 @@ class ActivationService {
     return false;
   }
 
-  // --- موافقة الأدمن وحفظها بالأجهزة والسحابة للأبد ---
+  // --- موافقة الأدمن وحفظها سحابياً ---
   static Future<bool> approveUserDual(String username) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
@@ -112,12 +112,12 @@ class ActivationService {
     }
   }
 
-  // --- إرسال إشعار تليجرام المباشر ---
+  // --- إرسال إشعار التليجرام المباشر ---
   static Future<bool> sendTelegramActivationRequest({
     required String username,
     required String email,
   }) async {
-    final String message = '🚨 طلب تفعيل برنامج جديد!\n\n'
+    final String message = '🚨 طلب تفعيل برنامج جديد!\n'
         '👤 المستخدم: $username\n'
         '📧 البريد: $email\n'
         '⏱ الوقت: ${DateTime.now().toString().split('.')[0]}';
