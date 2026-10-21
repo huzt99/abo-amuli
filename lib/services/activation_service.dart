@@ -30,7 +30,7 @@ class ActivationService {
     await prefs.setBool('is_admin_logged', value);
   }
 
-  // دالة لجلب البيانات وإرجاع النص الخام لفحصه على الشاشة
+  // جلب البيانات مع حماية كاملة ضد التعليق
   static Future<Map<String, dynamic>> fetchCloudDebugResult() async {
     try {
       final response = await http.get(
@@ -39,7 +39,7 @@ class ActivationService {
           'X-Master-Key': masterKey,
           'X-Access-Key': accessKey,
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 7));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> decoded = jsonDecode(response.body);
@@ -53,12 +53,12 @@ class ActivationService {
             usersList = List<Map<String, dynamic>>.from(record.map((e) => Map<String, dynamic>.from(e)));
           }
         }
-        return {'success': true, 'users': usersList, 'raw': response.body};
+        return {'success': true, 'users': usersList, 'raw': 'تم الاتصال بنجاح. عدد المستخدمين: ${usersList.length}'};
       } else {
-        return {'success': false, 'users': [], 'raw': 'Error Code: ${response.statusCode} - ${response.body}'};
+        return {'success': false, 'users': [], 'raw': 'خطأ سيرفر: ${response.statusCode}'};
       }
     } catch (e) {
-      return {'success': false, 'users': [], 'raw': 'Exception: $e'};
+      return {'success': false, 'users': [], 'raw': 'خطأ شبكة/اتصال: $e'};
     }
   }
 
@@ -88,7 +88,7 @@ class ActivationService {
           'X-Access-Key': accessKey,
         },
         body: jsonEncode({'users': users}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 7));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -125,7 +125,7 @@ class ActivationService {
           'X-Access-Key': accessKey,
         },
         body: jsonEncode({'users': users}),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 7));
 
       return response.statusCode == 200;
     } catch (e) {
@@ -151,7 +151,7 @@ class ActivationService {
           'chat_id': telegramChatId,
           'text': textMsg,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 7));
 
       return response.statusCode == 200;
     } catch (e) {
