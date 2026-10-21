@@ -2,22 +2,20 @@ import 'package:flutter/material.dart';
 import 'screens/activation_screen.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  runApp(const PosApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class PosApp extends StatelessWidget {
+  const PosApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'نظام إدارة المبيعات والمخازن',
+      title: 'نظام المبيعات والمخازن',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        brightness: Brightness.dark,
+        primarySwatch: Colors.blue,
         scaffoldBackgroundColor: const Color(0xFF0F172A),
-        fontFamily: 'Roboto',
       ),
       home: const ActivationScreen(),
     );
