@@ -17,21 +17,14 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      // خلفية فاتحة ناعمة مثل الصورة
+      backgroundColor: const Color(0xFFE2E8F0),
       appBar: AppBar(
         title: Text('نظام المبيعات والمخازن (${role == 'admin' ? 'مدير' : 'كاشير'})'),
         backgroundColor: const Color(0xFF1E293B),
+        elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Center(
-              child: Text(
-                'مرحباً، $username',
-                style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
             onPressed: () => Navigator.pop(context),
@@ -39,210 +32,205 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'العمليات الرئيسية',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 5, // 5 أعمدة بالضبط مثل الصورة
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.0, // أزرار مربعة متناسقة
+              children: [
+                // ---------------- الصف الأول ----------------
+                // 1. نقطة بيع
+                _buildMenuBtn(
+                  context,
+                  title: 'نقطة بيع',
+                  icon: Icons.point_of_sale,
+                  iconColor: const Color(0xFF38BDF8),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
+                  },
+                ),
+
+                // 2. قائمة شراء
+                _buildMenuBtn(
+                  context,
+                  title: 'قائمة شراء',
+                  icon: Icons.receipt_long_outlined,
+                  iconColor: const Color(0xFF818CF8),
+                  onTap: () {},
+                ),
+
+                // 3. عرض المواد
+                _buildMenuBtn(
+                  context,
+                  title: 'عرض المواد',
+                  icon: Icons.inventory_2_outlined,
+                  iconColor: const Color(0xFFFB923C),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductListScreen()));
+                  },
+                ),
+
+                // 4. إضافة مادة
+                _buildMenuBtn(
+                  context,
+                  title: 'إضافة مادة',
+                  icon: Icons.add_box_outlined,
+                  iconColor: const Color(0xFFF43F5E),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductScreen()));
+                  },
+                ),
+
+                // 5. كشف مبيعات
+                _buildMenuBtn(
+                  context,
+                  title: 'كشف مبيعات',
+                  icon: Icons.shopping_cart_checkout,
+                  iconColor: const Color(0xFFE11D48),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const SalesReportScreen()));
+                  },
+                ),
+
+                // ---------------- الصف الثاني ----------------
+                // 6. إضافة حساب
+                _buildMenuBtn(
+                  context,
+                  title: 'إضافة حساب',
+                  icon: Icons.person_add_alt_1_outlined,
+                  iconColor: const Color(0xFFFACC15),
+                  onTap: () {},
+                ),
+
+                // 7. سند قبض
+                _buildMenuBtn(
+                  context,
+                  title: 'سند قبض',
+                  icon: Icons.receipt_sharp,
+                  iconColor: const Color(0xFF4ADE80),
+                  onTap: () {},
+                ),
+
+                // 8. أرصدة الحسابات
+                _buildMenuBtn(
+                  context,
+                  title: 'أرصدة الحسابات',
+                  icon: Icons.request_quote_outlined,
+                  iconColor: const Color(0xFFF43F5E),
+                  onTap: () {},
+                ),
+
+                // 9. دمج قاعدة البيانات
+                _buildMenuBtn(
+                  context,
+                  title: 'دمج قاعدة البيانات',
+                  icon: Icons.cloud_sync_outlined,
+                  iconColor: const Color(0xFF34D399),
+                  onTap: () {},
+                ),
+
+                // 10. كشف حساب
+                _buildMenuBtn(
+                  context,
+                  title: 'كشف حساب',
+                  icon: Icons.badge_outlined,
+                  iconColor: const Color(0xFFEC4899),
+                  onTap: () {},
+                ),
+
+                // ---------------- الصف الثالث ----------------
+                // 11. سند صرف
+                _buildMenuBtn(
+                  context,
+                  title: 'سند صرف',
+                  icon: Icons.receipt_long,
+                  iconColor: const Color(0xFF38BDF8),
+                  onTap: () {},
+                ),
+
+                // 12. قائمة بيع
+                _buildMenuBtn(
+                  context,
+                  title: 'قائمة بيع',
+                  icon: Icons.featured_play_list_outlined,
+                  iconColor: const Color(0xFF38BDF8),
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
+                  },
+                ),
+
+                // 13. سند دفع
+                _buildMenuBtn(
+                  context,
+                  title: 'سند دفع',
+                  icon: Icons.local_offer_outlined,
+                  iconColor: const Color(0xFF4ADE80),
+                  onTap: () {},
+                ),
+
+                // 14. المطابقة اليومية
+                _buildMenuBtn(
+                  context,
+                  title: 'المطابقة اليومية',
+                  icon: Icons.crop_portrait_outlined,
+                  iconColor: const Color(0xFFEF4444),
+                  onTap: () {},
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 5, // شبكة متقاربة واحترافية مثل الصورة
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.2,
-                children: [
-                  // 1. شاشة بيع (POS)
-                  _buildDashboardCard(
-                    context,
-                    title: 'شاشة بيع',
-                    icon: Icons.point_of_sale,
-                    color: const Color(0xFF3B82F6),
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
-                    },
-                  ),
-
-                  // 2. إضافة مادة
-                  _buildDashboardCard(
-                    context,
-                    title: 'إضافة مادة',
-                    icon: Icons.add_box,
-                    color: const Color(0xFF10B981),
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductScreen()));
-                    },
-                  ),
-
-                  // 3. عرض المواد (المخزن)
-                  _buildDashboardCard(
-                    context,
-                    title: 'عرض المواد',
-                    icon: Icons.inventory_2,
-                    color: const Color(0xFFF59E0B),
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductListScreen()));
-                    },
-                  ),
-
-                  // 4. قائمة شراء
-                  _buildDashboardCard(
-                    context,
-                    title: 'قائمة شراء',
-                    icon: Icons.shopping_cart,
-                    color: const Color(0xFF8B5CF6),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('قائمة الشراء قيد التفعيل')));
-                    },
-                  ),
-
-                  // 5. كشف مبيعات
-                  _buildDashboardCard(
-                    context,
-                    title: 'كشف مبيعات',
-                    icon: Icons.receipt_long,
-                    color: const Color(0xFFEF4444),
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const SalesReportScreen()));
-                    },
-                  ),
-
-                  // 6. إضافة حساب
-                  _buildDashboardCard(
-                    context,
-                    title: 'إضافة حساب',
-                    icon: Icons.person_add,
-                    color: const Color(0xFF06B6D4),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('إضافة حساب زبون أو مورد')));
-                    },
-                  ),
-
-                  // 7. سند الدفع
-                  _buildDashboardCard(
-                    context,
-                    title: 'سند الدفع',
-                    icon: Icons.payment,
-                    color: const Color(0xFF14B8A6),
-                    onTap: () {},
-                  ),
-
-                  // 8. أرصدة الحسابات
-                  _buildDashboardCard(
-                    context,
-                    title: 'أرصدة الحسابات',
-                    icon: Icons.account_balance_wallet,
-                    color: const Color(0xFF6366F1),
-                    onTap: () {},
-                  ),
-
-                  // 9. نسخ قاعدة البيانات
-                  _buildDashboardCard(
-                    context,
-                    title: 'نسخ قاعدة البيانات',
-                    icon: Icons.storage,
-                    color: const Color(0xFFEC4899),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حفظ نسخة احتياطية من البيانات بنجاح')));
-                    },
-                  ),
-
-                  // 10. كشف حساب
-                  _buildDashboardCard(
-                    context,
-                    title: 'كشف حساب',
-                    icon: Icons.description,
-                    color: const Color(0xFFF97316),
-                    onTap: () {},
-                  ),
-
-                  // 11. سند الصرف
-                  _buildDashboardCard(
-                    context,
-                    title: 'سند الصرف',
-                    icon: Icons.money_off,
-                    color: const Color(0xFF84CC16),
-                    onTap: () {},
-                  ),
-
-                  // 12. قائمة بيع
-                  _buildDashboardCard(
-                    context,
-                    title: 'قائمة بيع',
-                    icon: Icons.list_alt,
-                    color: const Color(0xFF3B82F6),
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
-                    },
-                  ),
-
-                  // 13. سند الدخل
-                  _buildDashboardCard(
-                    context,
-                    title: 'سند الدخل',
-                    icon: Icons.trending_up,
-                    color: const Color(0xFF10B981),
-                    onTap: () {},
-                  ),
-
-                  // 14. المطابقة اليومية
-                  _buildDashboardCard(
-                    context,
-                    title: 'المطابقة اليومية',
-                    icon: Icons.fact_check,
-                    color: const Color(0xFFEAB308),
-                    onTap: () {},
-                  ),
-
-                  // 15. كشف حذف
-                  _buildDashboardCard(
-                    context,
-                    title: 'كشف حذف',
-                    icon: Icons.delete_sweep,
-                    color: const Color(0xFFEF4444),
-                    onTap: () {},
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildDashboardCard(
+  Widget _buildMenuBtn(
     BuildContext context, {
     required String title,
     required IconData icon,
-    required Color color,
+    required Color iconColor,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1E293B),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+          color: const Color(0xFF1E2B45), // أزرق داكن كحلي مثل الصورة
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
-        padding: const EdgeInsets.all(8),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
+            Icon(
+              icon,
+              size: 38,
+              color: iconColor,
+            ),
+            const SizedBox(height: 10),
             Text(
               title,
-              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                fontFamily: 'Tajawal',
+              ),
               textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
