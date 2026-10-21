@@ -9,7 +9,7 @@ class AdminApprovalScreen extends StatefulWidget {
 }
 
 class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
-  List<Map<String, String>> pendingUsers = [];
+  List<Map<String, dynamic>> pendingUsers = [];
   bool _isLoading = true;
 
   @override
@@ -19,27 +19,40 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
   }
 
   Future<void> _loadUsers() async {
-    final users = await ActivationService.getPendingUsers();
+    setState(() => _isLoading = true);
+    final users = await ActivationService.fetchUsersFromCloud();
     setState(() {
       pendingUsers = users;
       _isLoading = false;
     });
   }
 
-  void _approveUser(int index) async {
-    setState(() {
-      pendingUsers[index]['status'] = 'تم التفعيل ✅';
-    });
+  void _approveUser(String username) async {
+    setState(() => _isLoading = true);
     
-    await ActivationService.approveUser(pendingUsers[index]['username']!);
+    // موافقة سحابية دائمة
+    bool success = await ActivationService.approveUserDual(username);
+    
+    // إعادة التحميل للتأكد من حفظ الحالة
+    await _loadUsers();
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('تم قبول وتفعيل حساب ${pendingUsers[index]['username']} بنجاح!'),
-        backgroundColor: Colors.green,
-      ),
-    );
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تم تفعيل حساب $username سحابياً وللأبد!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('❌ حدث خطأ أثناء تحديث الحالة بالسحابة'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
@@ -47,9 +60,15 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('لوحة المطور - إدارة طلبات التفعيل'),
+        title: const Text('لوحة المطور - إدارة الموافقات السحابية'),
         backgroundColor: const Color(0xFF1E293B),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadUsers,
+          )
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -57,7 +76,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
             ? const Center(child: CircularProgressIndicator(color: Color(0xFF38BDF8)))
             : pendingUsers.isEmpty
                 ? const Center(
-                    child: Text('لا توجد طلبات تفعيل جديدة معلقة حالياً', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                    child: Text('لا توجد طلبات تفعيل مسجلة حالياً', style: TextStyle(color: Colors.white70, fontSize: 16)),
                   )
                 : ListView.builder(
                     itemCount: pendingUsers.length,
@@ -77,20 +96,20 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(user['username']!, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                  Text(user['username'] ?? '', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
                                       color: isApproved ? Colors.green.withOpacity(0.2) : Colors.orange.withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(user['status']!, style: TextStyle(color: isApproved ? Colors.green : Colors.orange, fontWeight: FontWeight.bold)),
+                                    child: Text(user['status'] ?? 'معلق ⏳', style: TextStyle(color: isApproved ? Colors.green : Colors.orange, fontWeight: FontWeight.bold)),
                                   ),
                                 ],
                               ),
                               const Divider(color: Colors.white24, height: 20),
-                              Text('🆔 اسم المستخدم / الحساب: ${user['username']}', style: const TextStyle(color: Colors.white70)),
-                              Text('📧 البريد الإلكتروني: ${user['email']}', style: const TextStyle(color: Colors.white70)),
+                              Text('🆔 اسم المستخدم: ${user['username']}', style: const TextStyle(color: Colors.white70)),
+                              Text('📧 البريد: ${user['email']}', style: const TextStyle(color: Colors.white70)),
                               const SizedBox(height: 12),
                               if (!isApproved)
                                 SizedBox(
@@ -102,7 +121,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
                                     ),
                                     icon: const Icon(Icons.check_circle_outline, color: Colors.white),
                                     label: const Text('تفعيل الحساب الآن', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                    onPressed: () => _approveUser(index),
+                                    onPressed: () => _approveUser(user['username']),
                                   ),
                                 ),
                             ],
