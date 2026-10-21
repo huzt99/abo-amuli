@@ -48,7 +48,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
       return;
     }
 
-    // 2. كود التفعيل الموحد للزبائن (يرسل طلب لتليجرام ويقفل الحساب)
+    // 2. كود التفعيل الموحد للزبائن
     if (code == '20319920') {
       bool sent = await ActivationService.sendTelegramActivationRequest(
         fullName: name,
@@ -61,7 +61,6 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
       if (!mounted) return;
 
-      // إظهار نافذة قفل الانتظار وعدم السماح بالدخول
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -77,7 +76,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
           ),
           content: Text(
             sent
-                ? 'تم إرسال طلب التفعيل إلى المطور بنجاح!\n\nحسابك مغلق حالرياً لحين موافقة المطور. يرجى مراسلته عبر الواتساب لإتمام الدفع وتفعيل البرنامج.'
+                ? 'تم إرسال طلب التفعيل إلى المطور بنجاح!\n\nحسابك مغلق حالياً لحين موافقة المطور. يرجى مراسلته عبر الواتساب لإتمام الدفع وتفعيل البرنامج.'
                 : 'حدث خطأ في الاتصال، يرجى مراسلة المطور مباشرة.',
             style: const TextStyle(color: Colors.white70, height: 1.4),
           ),
