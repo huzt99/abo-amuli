@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/activation_service.dart';
+import 'activation_screen.dart';
 
 class AdminApprovalScreen extends StatefulWidget {
   const AdminApprovalScreen({super.key});
@@ -29,7 +30,6 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
 
   void _approveUser(String username) async {
     setState(() => _isLoading = true);
-    
     bool success = await ActivationService.approveUserDual(username);
     await _loadUsers();
 
@@ -52,19 +52,35 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
     }
   }
 
+  // تسجيل خروج الأدمن
+  void _logoutAdmin() async {
+    await ActivationService.setAdminLoggedIn(false);
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const ActivationScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('لوحة المطور - إدارة الموافقات السحابية'),
+        title: const Text('لوحة المطور - إدارة الموافقات'),
         backgroundColor: const Color(0xFF1E293B),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadUsers,
-          )
+            tooltip: 'تحديث القائمة',
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.redAccent),
+            onPressed: _logoutAdmin,
+            tooltip: 'تسجيل خروج الأدمن',
+          ),
         ],
       ),
       body: Padding(
