@@ -5,9 +5,28 @@ class ActivationService {
   static const String telegramBotToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
   static const String telegramChatId = '6590858813';
 
-  static const String adminEmail = 'huzt.m1@gmail.com';
-  static const String adminUsername = 'huzt1992';
-  static const String adminPassword = '20819921992';
+  // قائمة الحسابات المعلقة المؤقتة
+  static final List<Map<String, String>> _registeredUsers = [];
+
+  static Future<void> savePendingUser({required String username, required String email}) async {
+    _registeredUsers.add({
+      'username': username,
+      'email': email,
+      'status': 'معلق ⏳',
+    });
+  }
+
+  static Future<List<Map<String, String>>> getPendingUsers() async {
+    return _registeredUsers;
+  }
+
+  static Future<void> approveUser(String username) async {
+    for (var u in _registeredUsers) {
+      if (u['username'] == username) {
+        u['status'] = 'تم التفعيل ✅';
+      }
+    }
+  }
 
   static Future<bool> sendTelegramActivationRequest({
     required String fullName,
@@ -15,16 +34,14 @@ class ActivationService {
     required String username,
     required String phone,
   }) async {
-    final String message = '''
-🚨 **طلب تفعيل برنامج POS جديد!**
+    final String plainTextMessage = '''
+🚨 طلب تفعيل برنامج POS جديد!
 ━━━━━━━━━━━━━━━━━━
-👤 **اسم الزبون:** $fullName
-📧 **البريد الإلكتروني:** $email
-🆔 **اسم المستخدم:** $username
-📞 **رقم الهاتف:** $phone
-⏱ **تاريخ الطلب:** ${DateTime.now().toString().split('.')[0]}
+👤 حساب الزبون: $username
+📧 البريد الإلكتروني: $email
+⏱ التوقيت: ${DateTime.now().toString().split('.')[0]}
 ━━━━━━━━━━━━━━━━━━
-⚙️ **الإجراء المطلوب:** يرجى فتح حساب الأدمن (`huzt1992`) للموافقة والتفعيل.
+⚙️ يرجى تسجيل الدخول بحساب الأدمن (huzt.m1@gmail.com) للموافقة.
 ''';
 
     try {
@@ -34,14 +51,12 @@ class ActivationService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'chat_id': telegramChatId,
-          'text': message,
-          'parse_mode': 'Markdown',
+          'text': plainTextMessage,
         }),
       );
 
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ في إرسال إشعار التلغرام: $e');
       return false;
     }
   }
