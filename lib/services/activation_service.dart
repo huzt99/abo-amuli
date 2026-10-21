@@ -10,7 +10,7 @@ class ActivationService {
   static const String telegramBotToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
   static const String telegramChatId = '6590858813';
 
-  // --- التخزين المحلي ---
+  // --- التحقق والتخزين المحلي ---
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_activated') ?? false;
@@ -21,7 +21,7 @@ class ActivationService {
     await prefs.setBool('is_activated', value);
   }
 
-  // --- التعامل مع السحابة JSONBin.io ---
+  // --- جلب البيانات السحابية وضمان القراءة ---
   static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
     try {
       final response = await http.get(
@@ -30,12 +30,16 @@ class ActivationService {
           'X-Master-Key': masterKey,
           'X-Access-Key': accessKey,
         },
-      ).timeout(const Duration(seconds: 10));
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        List list = data['record']['users'] ?? [];
-        return list.map((e) => Map<String, dynamic>.from(e)).toList();
+        if (data['record'] != null) {
+          var recordUsers = data['record']['users'];
+          if (recordUsers is List) {
+            return recordUsers.map((e) => Map<String, dynamic>.from(e)).toList();
+          }
+        }
       }
     } catch (e) {
       print('خطأ جلب السحابة: $e');
@@ -43,38 +47,39 @@ class ActivationService {
     return [];
   }
 
+  // --- حفظ طلب زبون جديد سحابياً ومحلياً ---
   static Future<bool> registerUserDual({required String username, required String email}) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
       
-      bool exists = users.any((u) => u['username'] == username);
-      if (!exists) {
-        users.add({
-          'username': username,
-          'email': email,
-          'status': 'معلق ⏳',
-        });
+      // إزالة أي طلب قديم بنفس الاسم وتحديثه
+      users.removeWhere((u) => u['username'] == username);
+      users.add({
+        'username': username,
+        'email': email,
+        'status': 'معلق ⏳',
+      });
 
-        final response = await http.put(
-          Uri.parse('https://api.jsonbin.io/v3/b/$binId'),
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Master-Key': masterKey,
-          },
-          body: jsonEncode({'users': users}),
-        );
-        return response.statusCode == 200;
-      }
-      return true;
+      final response = await http.put(
+        Uri.parse('https://api.jsonbin.io/v3/b/$binId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': masterKey,
+        },
+        body: jsonEncode({'users': users}),
+      );
+
+      return response.statusCode == 200;
     } catch (e) {
       return false;
     }
   }
 
+  // --- فحص قبول تفعيل الزبون سحابياً ---
   static Future<bool> checkUserActivationDual(String username) async {
     List<Map<String, dynamic>> users = await fetchUsersFromCloud();
     for (var u in users) {
-      if (u['username'] == username && u['status'] == 'تم التفعيل ✅') {
+      if (u['username'] == username && (u['status'] == 'تم التفعيل ✅' || u['status'] == 'مفعل')) {
         await setLocalActivated(true);
         return true;
       }
@@ -82,7 +87,7 @@ class ActivationService {
     return false;
   }
 
-  // موافقة الأدمن وحفظها في السحابة دائمياً
+  // --- موافقة الأدمن وحفظها بالأجهزة والسحابة للأبد ---
   static Future<bool> approveUserDual(String username) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
@@ -103,35 +108,25 @@ class ActivationService {
 
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ في الموافقة السحابية: $e');
       return false;
     }
   }
 
-  // --- إرسال إشعار التليجرام الفوري ---
+  // --- إرسال إشعار تليجرام المباشر ---
   static Future<bool> sendTelegramActivationRequest({
     required String username,
     required String email,
   }) async {
-    final String textMessage = '🚨 طلب تفعيل برنامج جديد!\n\n'
+    final String message = '🚨 طلب تفعيل برنامج جديد!\n\n'
         '👤 المستخدم: $username\n'
         '📧 البريد: $email\n'
         '⏱ الوقت: ${DateTime.now().toString().split('.')[0]}';
 
     try {
-      final url = Uri.parse('https://api.telegram.org/bot$telegramBotToken/sendMessage');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'chat_id': telegramChatId,
-          'text': textMessage,
-        }),
-      ).timeout(const Duration(seconds: 10));
-
+      final url = Uri.parse('https://api.telegram.org/bot$telegramBotToken/sendMessage?chat_id=$telegramChatId&text=${Uri.encodeComponent(message)}');
+      final response = await http.get(url);
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ في التليجرام: $e');
       return false;
     }
   }
