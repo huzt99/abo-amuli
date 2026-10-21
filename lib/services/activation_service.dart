@@ -3,15 +3,14 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ActivationService {
-  // تم تصحيح المفاتيح بأسلوب يمنع تداخل الرموز
   static const String binId = '6ad894f0ffd5d160537f0188';
-  static const String masterKey = '\$2a\$10\$4Tc0iksgy9.hUeH4n5LeCewNlWf46yUlr5vu5DfgU3KVbieJF5OvK';
-  static const String accessKey = '\$2a\$10\$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG';
+  static const String masterKey = r'$2a$10$4Tc0iksgy9.hUeH4n5LeCewNlWf46yUlr5vu5DfgU3KVbieJF5OvK';
+  static const String accessKey = r'$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG';
 
   static const String telegramBotToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
   static const String telegramChatId = '6590858813';
 
-  // --- التخزين المحلي ---
+  // --- إدارة الجلسات المحلية ---
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_activated') ?? false;
@@ -22,7 +21,17 @@ class ActivationService {
     await prefs.setBool('is_activated', value);
   }
 
-  // --- جلب قائمة المستخدمين من السحابة ---
+  static Future<bool> isAdminLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('is_admin_logged') ?? false;
+  }
+
+  static Future<void> setAdminLoggedIn(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_admin_logged', value);
+  }
+
+  // --- جلب البيانات من السحابة ---
   static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
     try {
       final response = await http.get(
@@ -31,30 +40,29 @@ class ActivationService {
           'X-Master-Key': masterKey,
           'X-Access-Key': accessKey,
         },
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        if (data.containsKey('record') && data['record'] is Map) {
+        if (data.containsKey('record')) {
           final record = data['record'];
-          if (record.containsKey('users') && record['users'] is List) {
+          if (record is Map && record.containsKey('users') && record['users'] is List) {
             List list = record['users'];
             return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           }
         }
       }
     } catch (e) {
-      print('خطأ في جلب بيانات السحابة: $e');
+      print('خطأ جلب السحابة: $e');
     }
     return [];
   }
 
-  // --- تسجيل زبون جديد وحفظه بالسحابة ---
+  // --- تسجيل مستخدم جديد في السحابة ---
   static Future<bool> registerUserDual({required String username, required String email}) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
       
-      // إزالة أي سجل قديم لنفس الاسم وتحديثه
       users.removeWhere((u) => u['username'] == username);
       users.add({
         'username': username,
@@ -68,18 +76,19 @@ class ActivationService {
         headers: {
           'Content-Type': 'application/json',
           'X-Master-Key': masterKey,
+          'X-Access-Key': accessKey,
         },
         body: jsonEncode({'users': users}),
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 10));
 
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ في رفع البيانات للسحابة: $e');
+      print('خطأ التسجيل بالسحابة: $e');
       return false;
     }
   }
 
-  // --- فحص هل الحساب مفعل بالسحابة ---
+  // --- فحص تفعيل الزبون ---
   static Future<bool> checkUserActivationDual(String username) async {
     List<Map<String, dynamic>> users = await fetchUsersFromCloud();
     for (var u in users) {
@@ -91,7 +100,7 @@ class ActivationService {
     return false;
   }
 
-  // --- موافقة الأدمن والتفعيل الدائم بالسحابة ---
+  // --- موافقة الأدمن وحفظها في السحابة ---
   static Future<bool> approveUserDual(String username) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
@@ -106,18 +115,19 @@ class ActivationService {
         headers: {
           'Content-Type': 'application/json',
           'X-Master-Key': masterKey,
+          'X-Access-Key': accessKey,
         },
         body: jsonEncode({'users': users}),
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 10));
 
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ في التفعيل السحابي: $e');
+      print('خطأ التفعيل بالسحابة: $e');
       return false;
     }
   }
 
-  // --- إرسال إشعار التليجرام الفوري ---
+  // --- إرسال إشعار التليجرام ---
   static Future<bool> sendTelegramActivationRequest({
     required String username,
     required String email,
@@ -136,11 +146,11 @@ class ActivationService {
           'chat_id': telegramChatId,
           'text': textMsg,
         }),
-      ).timeout(const Duration(seconds: 8));
+      ).timeout(const Duration(seconds: 10));
 
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ إرسال التليجرام: $e');
+      print('خطأ التليجرام: $e');
       return false;
     }
   }
