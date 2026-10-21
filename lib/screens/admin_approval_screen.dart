@@ -30,10 +30,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
   void _approveUser(String username) async {
     setState(() => _isLoading = true);
     
-    // موافقة سحابية دائمة
     bool success = await ActivationService.approveUserDual(username);
-    
-    // إعادة التحميل للتأكد من حفظ الحالة
     await _loadUsers();
 
     if (!mounted) return;
@@ -82,7 +79,7 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
                     itemCount: pendingUsers.length,
                     itemBuilder: (context, index) {
                       final user = pendingUsers[index];
-                      final isApproved = user['status'] == 'تم التفعيل ✅';
+                      final isApproved = user['status'] == 'تم التفعيل ✅' || user['status'] == 'مفعل';
 
                       return Card(
                         color: const Color(0xFF1E2B45),
