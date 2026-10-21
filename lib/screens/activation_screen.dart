@@ -19,6 +19,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
   bool _isRegistered = false;
   bool _isActivated = false;
   bool _isCashierSetup = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -28,10 +29,25 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
   void _checkStatus() async {
     final prefs = await SharedPreferences.getInstance();
+    bool registered = prefs.getBool('is_registered') ?? false;
+    bool activated = prefs.getBool('is_activated') ?? false;
+    bool cashierSetup = prefs.getBool('cashier_setup') ?? false;
+
+    // إذا كان البرنامج مفعلاً بالكامل ومُعداً، انتقل مباشرة للوحة الرئيسية بدون إظهار شاشة التفعيل
+    if (registered && activated && cashierSetup) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardScreen(username: 'المدير', role: 'admin')),
+      );
+      return;
+    }
+
     setState(() {
-      _isRegistered = prefs.getBool('is_registered') ?? false;
-      _isActivated = prefs.getBool('is_activated') ?? false;
-      _isCashierSetup = prefs.getBool('cashier_setup') ?? false;
+      _isRegistered = registered;
+      _isActivated = activated;
+      _isCashierSetup = cashierSetup;
+      _isLoading = false;
     });
   }
 
@@ -91,6 +107,13 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0F172A),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       body: Center(
