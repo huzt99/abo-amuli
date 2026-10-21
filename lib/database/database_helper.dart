@@ -1,6 +1,5 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import 'dart:convert';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -21,115 +20,83 @@ class DatabaseHelper {
     return await openDatabase(
       path,
       version: 1,
-      onCreate: _onCreate,
+      onCreate: _createDB,
     );
   }
 
-  Future<void> _onCreate(Database db, int version) async {
+  Future _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        barcode TEXT,
-        name TEXT NOT NULL,
-        quantity REAL NOT NULL,
-        buy_price REAL NOT NULL,
-        sell_price REAL NOT NULL,
-        expiry_date TEXT,
-        alert_days INTEGER,
-        is_quick INTEGER DEFAULT 0
+        barcode TEXT UNIQUE,
+        name TEXT,
+        price REAL,
+        cost REAL,
+        quantity INTEGER
       )
     ''');
 
     await db.execute('''
-      CREATE TABLE invoices (
+      CREATE TABLE sales (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date TEXT NOT NULL,
-        total_amount REAL NOT NULL,
-        items_json TEXT NOT NULL,
-        cashier_name TEXT
+        total_amount REAL,
+        date TEXT
       )
     ''');
-
-    await db.execute('''
-      CREATE TABLE users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL
-      )
-    ''');
-
-    await db.insert('users', {'username': 'admin', 'password': '123', 'role': 'admin'});
-    await db.insert('users', {'username': 'cashier', 'password': '111', 'role': 'cashier'});
   }
 
-  Future<int> insertProduct(Map<String, dynamic> row) async {
-    final db = await instance.database;
-    return await db.insert('products', row);
-  }
-
+  // 1. إرجاع كل المنتجات
   Future<List<Map<String, dynamic>>> getAllProducts() async {
     final db = await instance.database;
-    return await db.query('products', orderBy: 'id DESC');
+    return await db.query('products');
   }
 
-  // الدوال المطلوبة بواسطة شاشة الـ POS
-  Future<List<Map<String, dynamic>>> getTouchProducts() async {
+  // 2. إرجاع كل المبيعات (التي طلبها سيرفر البناء)
+  Future<List<Map<String, dynamic>>> getAllSales() async {
     final db = await instance.database;
-    return await db.query('products', where: 'is_quick = 1');
+    return await db.query('sales');
   }
 
-  Future<void> completeSale(List<Map<String, dynamic>> cartItems, double totalAmount) async {
+  // 3. إضافة أو تحديث منتج من السحابة
+  Future<int> insertOrUpdateProduct(Map<String, dynamic> product) async {
     final db = await instance.database;
+    String barcode = product['barcode'] ?? 'NO_BC_${DateTime.now().millisecondsSinceEpoch}';
     
-    // حفظ الفاتورة
-    await db.insert('invoices', {
-      'date': DateTime.now().toString(),
-      'total_amount': totalAmount,
-      'items_json': jsonEncode(cartItems),
-      'cashier_name': 'مدير/كاشير'
-    });
+    List<Map<String, dynamic>> existing = await db.query(
+      'products',
+      where: 'barcode = ?',
+      whereArgs: [barcode],
+    );
 
-    // خصم الكميات من المخزن
-    for (var item in cartItems) {
-      int id = item['id'];
-      double soldQty = item['sold_qty'] ?? 1.0;
-      
-      // جلب الكمية الحالية
-      var result = await db.query('products', where: 'id = ?', whereArgs: [id]);
-      if (result.isNotEmpty) {
-        double currentQty = result.first['quantity'] as double;
-        double newQty = currentQty - soldQty;
-        if (newQty < 0) newQty = 0;
-
-        await db.update(
-          'products',
-          {'quantity': newQty},
-          where: 'id = ?',
-          whereArgs: [id],
-        );
-      }
+    if (existing.isNotEmpty) {
+      return await db.update(
+        'products',
+        {
+          'name': product['name'],
+          'price': product['price'],
+          'cost': product['cost'],
+          'quantity': product['quantity'],
+        },
+        where: 'barcode = ?',
+        whereArgs: [barcode],
+      );
+    } else {
+      return await db.insert('products', {
+        'barcode': barcode,
+        'name': product['name'],
+        'price': product['price'],
+        'cost': product['cost'],
+        'quantity': product['quantity'],
+      });
     }
   }
 
-  Future<int> deleteProduct(int id) async {
+  // 4. إضافة مبيعات
+  Future<int> insertSale(double total) async {
     final db = await instance.database;
-    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
-  }
-
-  Future<Map<String, dynamic>?> loginUser(String username, String password) async {
-    final db = await instance.database;
-    final results = await db.query(
-      'users',
-      where: 'username = ? AND password = ?',
-      whereArgs: [username, password],
-    );
-    if (results.isNotEmpty) return results.first;
-    return null;
-  }
-
-  Future<List<Map<String, dynamic>>> getAllInvoices() async {
-    final db = await instance.database;
-    return await db.query('invoices', orderBy: 'id DESC');
+    return await db.insert('sales', {
+      'total_amount': total,
+      'date': DateTime.now().toIso8601String(),
+    });
   }
 }
