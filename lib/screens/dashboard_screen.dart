@@ -4,6 +4,7 @@ import 'add_product_screen.dart';
 import 'product_list_screen.dart';
 import 'sales_report_screen.dart';
 import 'accounts_screen.dart';
+import '../services/cloud_service.dart';
 
 class DashboardScreen extends StatelessWidget {
   final String username;
@@ -20,6 +21,36 @@ class DashboardScreen extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => AccountsScreen(title: title),
+      ),
+    );
+  }
+
+  // دالة تنفيذ النسخ الاحتياطي للسحابة
+  void _handleCloudBackup(BuildContext context) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('جاري رفع النسخة الاحتياطية للسحابة...'), duration: Duration(seconds: 1)),
+    );
+    bool success = await CloudService.uploadBackup();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? '✅ تم رفع النسخة الاحتياطية للسحابة بنجاح!' : '❌ فشل الرفع السحابي، تحقق من الإنترنت'),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  // دالة دمج واستعادة البيانات من السحابة
+  void _handleCloudRestore(BuildContext context) async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('جاري جلب ودمج البيانات من السحابة...'), duration: Duration(seconds: 1)),
+    );
+    bool success = await CloudService.downloadAndRestore();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? '✅ تم دمج واستعادة البيانات بنجاح!' : '❌ فشل السحب من السحابة'),
+        backgroundColor: success ? Colors.green : Colors.red,
       ),
     );
   }
@@ -126,13 +157,13 @@ class DashboardScreen extends StatelessWidget {
                   iconColor: const Color(0xFFF43F5E),
                   onTap: () => _navigateToScreen(context, 'أرصدة الحسابات'),
                 ),
-                // 9. دمج قاعدة البيانات
+                // 9. دمج قاعدة البيانات (مربوط سحابياً)
                 _buildMenuBtn(
                   context,
                   title: 'دمج قاعدة البيانات',
                   icon: Icons.cloud_sync_outlined,
                   iconColor: const Color(0xFF34D399),
-                  onTap: () => _navigateToScreen(context, 'دمج قاعدة البيانات'),
+                  onTap: () => _handleCloudRestore(context),
                 ),
                 // 10. كشف حساب
                 _buildMenuBtn(
@@ -168,13 +199,13 @@ class DashboardScreen extends StatelessWidget {
                   iconColor: const Color(0xFF4ADE80),
                   onTap: () => _navigateToScreen(context, 'سند دفع'),
                 ),
-                // 14. المطابقة اليومية
+                // 14. المطابقة اليومية (تم جعلها للنسخ الاحتياطي السحابي السريع)
                 _buildMenuBtn(
                   context,
-                  title: 'المطابقة اليومية',
-                  icon: Icons.crop_portrait_outlined,
+                  title: 'نسخ السحابة',
+                  icon: Icons.cloud_upload_outlined,
                   iconColor: const Color(0xFFEF4444),
-                  onTap: () => _navigateToScreen(context, 'المطابقة اليومية'),
+                  onTap: () => _handleCloudBackup(context),
                 ),
               ],
             ),
