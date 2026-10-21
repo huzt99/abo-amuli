@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dashboard_screen.dart';
+import '../services/activation_service.dart';
+import 'admin_approval_screen.dart';
 
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -11,238 +11,198 @@ class ActivationScreen extends StatefulWidget {
 }
 
 class _ActivationScreenState extends State<ActivationScreen> {
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _codeController = TextEditingController();
-  final _cashierPassController = TextEditingController();
-  
-  bool _isRegistered = false;
-  bool _isActivated = false;
-  bool _isCashierSetup = false;
-  bool _isLoading = true;
+  final _formKey = GlobalKey<FormState>();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _codeController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    _checkStatus();
+  bool _isLoading = false;
+
+  Future<void> _openWhatsApp() async {
+    final Uri whatsappUrl = Uri.parse('https://wa.me/9647862597668?text=${Uri.encodeComponent('السلام عليكم، قمت بإرسال طلب تفعيل للبرنامج باسم: ${_usernameController.text}')}');
+    if (await canLaunchUrl(whatsappUrl)) {
+      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+    }
   }
 
-  void _checkStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    bool registered = prefs.getBool('is_registered') ?? false;
-    bool activated = prefs.getBool('is_activated') ?? false;
-    bool cashierSetup = prefs.getBool('cashier_setup') ?? false;
+  void _submitActivation() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    // إذا كان البرنامج مفعلاً بالكامل ومُعداً، انتقل مباشرة للوحة الرئيسية بدون إظهار شاشة التفعيل
-    if (registered && activated && cashierSetup) {
-      if (!mounted) return;
+    setState(() => _isLoading = true);
+
+    String username = _usernameController.text.trim();
+    String code = _codeController.text.trim();
+    String name = _nameController.text.trim();
+    String email = _emailController.text.trim();
+    String phone = _phoneController.text.trim();
+
+    // 1. دخول الأدمن الماستر الخاص بك
+    if (username == ActivationService.adminUsername && code == ActivationService.adminPassword) {
+      setState(() => _isLoading = false);
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const DashboardScreen(username: 'المدير', role: 'admin')),
+        MaterialPageRoute(builder: (context) => const AdminApprovalScreen()),
       );
       return;
     }
 
-    setState(() {
-      _isRegistered = registered;
-      _isActivated = activated;
-      _isCashierSetup = cashierSetup;
-      _isLoading = false;
-    });
-  }
-
-  void _register() async {
-    if (_phoneController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء إدخال رقم الهاتف وكلمة المرور')),
+    // 2. كود التفعيل الموحد للزبائن (يرسل طلب لتليجرام ويقفل الحساب)
+    if (code == '20319920') {
+      bool sent = await ActivationService.sendTelegramActivationRequest(
+        fullName: name,
+        email: email,
+        username: username,
+        phone: phone,
       );
-      return;
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('admin_phone', _phoneController.text.trim());
-    await prefs.setString('admin_pass', _passwordController.text.trim());
-    await prefs.setBool('is_registered', true);
-    setState(() => _isRegistered = true);
-  }
 
-  void _verifyActivationCode() async {
-    if (_codeController.text.trim() == '20319920') {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_activated', true);
-      setState(() => _isActivated = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم تفعيل البرنامج بنجاح مدى الحياة!'), backgroundColor: Colors.green),
+      setState(() => _isLoading = false);
+
+      if (!mounted) return;
+
+      // إظهار نافذة قفل الانتظار وعدم السماح بالدخول
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.hourglass_top, color: Colors.amber),
+              SizedBox(width: 8),
+              Text('الطلب قيد المراجعة', style: TextStyle(color: Colors.white, fontSize: 18)),
+            ],
+          ),
+          content: Text(
+            sent
+                ? 'تم إرسال طلب التفعيل إلى المطور بنجاح!\n\nحسابك مغلق حالرياً لحين موافقة المطور. يرجى مراسلته عبر الواتساب لإتمام الدفع وتفعيل البرنامج.'
+                : 'حدث خطأ في الاتصال، يرجى مراسلة المطور مباشرة.',
+            style: const TextStyle(color: Colors.white70, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+              onPressed: () {
+                Navigator.pop(context);
+                _openWhatsApp();
+              },
+              icon: const Icon(Icons.chat, color: Colors.white),
+              label: const Text('مراسلة المطور واتساب', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
       );
     } else {
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('كود التفعيل غير صحيح، تواصل مع المطور'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('❌ رمز التفعيل غير صحيح!'),
+          backgroundColor: Colors.red,
+        ),
       );
-    }
-  }
-
-  void _saveCashierPassword() async {
-    if (_cashierPassController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء إدخال رمز الكاشير')),
-      );
-      return;
-    }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('cashier_pass', _cashierPassController.text.trim());
-    await prefs.setBool('cashier_setup', true);
-
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const DashboardScreen(username: 'المدير', role: 'admin')),
-    );
-  }
-
-  void _openWhatsApp() async {
-    final Uri url = Uri.parse('https://wa.me/9647862597668?text=مرحباً%20المطور%20حسين،%20أريد%20كود%20تفعيل%20نظام%20النقاط%20للبيع.');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF0F172A),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
-      );
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.verified_user, size: 80, color: Color(0xFF3B82F6)),
-              const SizedBox(height: 16),
-              const Text(
-                'تفعيل نظام المبيعات والمخازن',
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 32),
-
-              if (!_isRegistered) ...[
-                TextField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'رقم الهاتف',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: const Color(0xFF1E293B),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.phone, color: Color(0xFF3B82F6)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'رمز دخول المدير',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: const Color(0xFF1E293B),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.lock, color: Color(0xFF3B82F6)),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _register,
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6)),
-                    child: const Text('تسجيل وحفظ بالجهاز', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ] else if (!_isActivated) ...[
-                const Text(
-                  'تم التسجيل! الحساب بانتظار التفعيل.',
-                  style: TextStyle(color: Colors.amber, fontSize: 16, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _codeController,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'أدخل كود التفعيل',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: const Color(0xFF1E293B),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.key, color: Color(0xFF3B82F6)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _verifyActivationCode,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                    child: const Text('تفعيل البرنامج مدى الحياة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Divider(color: Colors.white24),
-                const SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: _openWhatsApp,
-                  icon: const Icon(Icons.chat, color: Colors.green),
-                  label: const Text('مراسلة المطور (واتساب: 07862597668)', style: TextStyle(color: Colors.white)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.green),
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  ),
-                ),
-              ] else if (!_isCashierSetup) ...[
-                const Text(
-                  'تم التفعيل بنجاح! قم بتعيين رمز خاص للكاشير:',
-                  style: TextStyle(color: Colors.green, fontSize: 15),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: _cashierPassController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'رمز الكاشير',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: const Color(0xFF1E293B),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF3B82F6)),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _saveCashierPassword,
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6)),
-                    child: const Text('حفظ والانتقال للبرنامج', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
+          padding: const EdgeInsets.all(20.0),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 420),
+            padding: const EdgeInsets.all(24.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
               ],
-            ],
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.security, size: 48, color: Color(0xFF38BDF8)),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'تفعيل نظام المبيعات والمخازن',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'يرجى إدخال بياناتك ورمز التفعيل المعتمد',
+                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildField(_nameController, 'الاسم الكامل', Icons.person),
+                  const SizedBox(height: 12),
+                  _buildField(_emailController, 'البريد الإلكتروني', Icons.email),
+                  const SizedBox(height: 12),
+                  _buildField(_usernameController, 'اسم المستخدم', Icons.account_circle),
+                  const SizedBox(height: 12),
+                  _buildField(_phoneController, 'رقم الهاتف', Icons.phone),
+                  const SizedBox(height: 12),
+                  _buildField(_codeController, 'رمز التفعيل', Icons.vpn_key, isPassword: true),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _isLoading ? null : _submitActivation,
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              'إرسال طلب التفعيل والموافقة',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(TextEditingController controller, String label, IconData icon, {bool isPassword = false}) {
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword,
+      style: const TextStyle(color: Colors.white, fontSize: 14),
+      validator: (v) => v == null || v.trim().isEmpty ? 'مطلوب' : null,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white60, fontSize: 13),
+        prefixIcon: Icon(icon, color: const Color(0xFF38BDF8), size: 20),
+        filled: true,
+        fillColor: const Color(0xFF0F172A),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF38BDF8)),
         ),
       ),
     );
