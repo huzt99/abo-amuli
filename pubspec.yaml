@@ -1,7 +1,6 @@
 name: pos_system
-description: "A new Flutter project for POS system."
+description: "نظام المبيعات والمخازن المتطور"
 publish_to: 'none'
-
 version: 1.0.0+1
 
 environment:
@@ -10,13 +9,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
-  cupertino_icons: ^1.0.6
-  sqflite: ^2.3.0
-  path: ^1.8.3
-  shared_preferences: ^2.2.2
-  url_launcher: ^6.2.4
   http: ^1.2.0
+  shared_preferences: ^2.2.2
+  url_launcher: ^6.2.5
+  sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0
+  path: ^1.8.3
 
 dev_dependencies:
   flutter_test:
