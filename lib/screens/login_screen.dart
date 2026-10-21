@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../services/activation_service.dart';
 import 'dashboard_screen.dart';
+import 'admin_approval_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -10,34 +12,104 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+
+  final TextEditingController _fullNameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _codeController = TextEditingController();
+
   bool _isLoading = false;
 
-  void _login() async {
-    setState(() => _isLoading = true);
-    final user = await DatabaseHelper.instance.loginUser(
-      _usernameController.text.trim(),
-      _passwordController.text.trim(),
-    );
-    setState(() => _isLoading = false);
+  // فتح رابط الواتساب للتواصل
+  Future<void> _openWhatsApp() async {
+    final Uri whatsappUrl = Uri.parse('https://wa.me/9647862597668?text=${Uri.encodeComponent('السلام عليكم، قمت بإرسال طلب تفعيل للبرنامج باسم: ${_usernameController.text}')}');
+    if (await canLaunchUrl(whatsappUrl)) {
+      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر فتح الواتساب، يرجى المراسلة على 07862597668')),
+      );
+    }
+  }
 
-    if (user != null) {
-      if (!mounted) return;
+  // عملية معالجة التفعيل/تسجيل الدخول
+  void _handleActivation() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    String email = _emailController.text.trim();
+    String username = _usernameController.text.trim();
+    String code = _codeController.text.trim();
+    String name = _fullNameController.text.trim();
+    String phone = _phoneController.text.trim();
+
+    // 1. التحقق إذا كان المسجل هو الأدمن الماستر (أنت يا أبو مؤمل)
+    if (username == ActivationService.adminUsername && code == ActivationService.adminPassword) {
+      setState(() => _isLoading = false);
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (context) => DashboardScreen(
-            username: user['username'],
-            role: user['role'],
+        MaterialPageRoute(builder: (context) => const AdminApprovalScreen()),
+      );
+      return;
+    }
+
+    // 2. التحقق من كود التفعيل الموحد للزبائن
+    if (code == '20319920') {
+      // إرسال الإشعار للتلغرام الخاص بك
+      bool sent = await ActivationService.sendTelegramActivationRequest(
+        fullName: name,
+        email: email,
+        username: username,
+        phone: phone,
+      );
+
+      setState(() => _isLoading = false);
+
+      if (!mounted) return;
+
+      // إظهار تنبيه للزبون وتحويله للواتساب
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('✅ تم إرسال طلب التفعيل', style: TextStyle(color: Colors.white)),
+          content: Text(
+            sent
+                ? 'تم إرسال طلب التفعيل إلى المطور بنجاح.\nيرجى التواصل عبر الواتساب لإكمال تفعيل الحساب.'
+                : 'حدث خطأ في الاتصال، يرجى التواصل مباشر مع المطور لتفعيل حسابك.',
+            style: const TextStyle(color: Colors.white70),
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _openWhatsApp();
+              },
+              child: const Text('التواصل عبر واتساب 💬', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                // الدخول ككاشير بانتظار الموافقة أو توجيهه للرئيسية
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => const DashboardScreen(role: 'cashier')),
+                );
+              },
+              child: const Text('متابعة كنسخة تجريبية', style: TextStyle(color: Colors.grey)),
+            ),
+          ],
         ),
       );
     } else {
-      if (!mounted) return;
+      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('اسم المستخدم أو كلمة المرور غير صحيحة'),
+          content: Text('❌ رمز التفعيل غير صحيح، يرجى التواصل مع الدعم (+9647862597668)'),
           backgroundColor: Colors.red,
         ),
       );
@@ -51,64 +123,111 @@ class _LoginScreenState extends State<LoginScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.storefront, size: 80, color: Color(0xFF3B82F6)),
-              const SizedBox(height: 16),
-              const Text(
-                'نظام نقاط البيع وإدارة المخازن',
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'سجل الدخول للمتابعة',
-                style: TextStyle(color: Colors.slate, fontSize: 14),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: _usernameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'اسم المستخدم (admin أو cashier)',
-                  labelStyle: const TextStyle(color: Colors.slate),
-                  filled: true,
-                  fillColor: const Color(0xFF1E293B),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.person, color: Color(0xFF3B82F6)),
+          child: Container(
+            maxWidth: 450,
+            padding: const EdgeInsets.all(28.0),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 8),
                 ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: 'كلمة المرور (123 للمدير / 111 للكاشير)',
-                  labelStyle: const TextStyle(color: Colors.slate),
-                  filled: true,
-                  fillColor: const Color(0xFF1E293B),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  prefixIcon: const Icon(Icons.lock, color: Color(0xFF3B82F6)),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF3B82F6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ],
+            ),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.point_of_sale_sharp, size: 60, color: Color(0xFF38BDF8)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'نظام إدارة المبيعات والمخازن',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('تسجيل الدخول', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'تفعيل البرنامج والدخول',
+                    style: TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildTextField(_fullNameController, 'الاسم الكامل', Icons.person),
+                  const SizedBox(height: 12),
+                  _buildTextField(_emailController, 'البريد الإلكتروني', Icons.email, isEmail: true),
+                  const SizedBox(height: 12),
+                  _buildTextField(_usernameController, 'اسم المستخدم', Icons.account_circle),
+                  const SizedBox(height: 12),
+                  _buildTextField(_phoneController, 'رقم الهاتف', Icons.phone, isPhone: true),
+                  const SizedBox(height: 12),
+                  _buildTextField(_codeController, 'رمز التفعيل', Icons.vpn_key, isPassword: true),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: _isLoading ? null : _handleActivation,
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              'تفعيل وتسجيل الدخول',
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton.icon(
+                    onPressed: _openWhatsApp,
+                    icon: const Icon(Icons.support_agent, color: Color(0xFF4ADE80)),
+                    label: const Text(
+                      'الدعم الفني عبر واتساب',
+                      style: TextStyle(color: Color(0xFF4ADE80)),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool isEmail = false,
+    bool isPhone = false,
+    bool isPassword = false,
+  }) {
+    return TextFormField(
+      controller: controller,
+      obscureText: isPassword,
+      style: const TextStyle(color: Colors.white),
+      keyboardType: isEmail ? TextInputType.emailAddress : (isPhone ? TextInputType.phone : TextInputType.text),
+      validator: (value) {
+        if (value == null || value.trim().isEmpty) {
+          return 'يرجى إدخال $label';
+        }
+        return null;
+      },
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.white60),
+        prefixIcon: Icon(icon, color: const Color(0xFF38BDF8)),
+        filled: true,
+        fillColor: const Color(0xFF0F172A),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF38BDF8)),
         ),
       ),
     );
