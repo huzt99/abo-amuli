@@ -22,12 +22,22 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
   }
 
   void _loadProducts() async {
-    final products = await DatabaseHelper.instance.getAllProducts();
-    setState(() {
-      _barcodeProducts = products.where((p) => !p['barcode'].toString().startsWith('NO_BC_')).toList();
-      _noBarcodeProducts = products.where((p) => p['barcode'].toString().startsWith('NO_BC_')).toList();
-      _isLoading = false;
-    });
+    try {
+      final products = await DatabaseHelper.instance.getAllProducts();
+      if (mounted) {
+        setState(() {
+          _barcodeProducts = products.where((p) => !p['barcode'].toString().startsWith('NO_BC_')).toList();
+          _noBarcodeProducts = products.where((p) => p['barcode'].toString().startsWith('NO_BC_')).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   void _deleteProduct(int id) async {
@@ -40,7 +50,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('إدارة المخزن والمواد'),
+        title: const Text('إدارة المخزن وعرض المواد'),
         backgroundColor: const Color(0xFF1E293B),
         bottom: TabBar(
           controller: _tabController,
@@ -54,7 +64,7 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
           : TabBarView(
               controller: _tabController,
               children: [
@@ -67,8 +77,11 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
 
   Widget _buildProductList(List<Map<String, dynamic>> products) {
     if (products.isEmpty) {
-      const Center(
-        child: Text('لا توجد مواد مخزنة حالياً', style: TextStyle(color: Colors.white54, fontSize: 16)),
+      return const Center(
+        child: Text(
+          'لا توجد مواد مخزنة في هذا القسم حالياً',
+          style: TextStyle(color: Colors.white54, fontSize: 16),
+        ),
       );
     }
     return ListView.builder(
@@ -76,7 +89,8 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
       itemCount: products.length,
       itemBuilder: (context, index) {
         final product = products[index];
-        bool isLowStock = (product['quantity'] as double) <= 5.0; // تنبيه قرب نفاد الكمية
+        double qty = (product['quantity'] as num?)?.toDouble() ?? 0.0;
+        bool isLowStock = qty <= 5.0;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -91,15 +105,16 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
           child: ListTile(
             contentPadding: const EdgeInsets.all(16),
             title: Text(
-              product['name'],
+              product['name'] ?? 'بدون اسم',
               style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 6),
-                Text('الكمية المتوفرة: ${product['quantity']} أعداد/كيلو', style: const TextStyle(color: Colors.white70)),
-                Text('سعر البيع: ${product['sell_price']} دينار', style: const TextStyle(color: Color(0xFF10B981))),
+                Text('الباركود: ${product['barcode']}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                Text('الكمية المتوفرة: $qty', style: const TextStyle(color: Colors.white70)),
+                Text('سعر البيع: ${product['sell_price']} د.ع', style: const TextStyle(color: Color(0xFF10B981))),
                 if (isLowStock)
                   const Padding(
                     padding: EdgeInsets.only(top: 4.0),
