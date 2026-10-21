@@ -3,6 +3,7 @@ import 'pos_screen.dart';
 import 'add_product_screen.dart';
 import 'product_list_screen.dart';
 import 'sales_report_screen.dart';
+import 'accounts_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   final String username;
@@ -14,19 +15,11 @@ class DashboardScreen extends StatelessWidget {
     this.role = 'admin',
   });
 
-  void _showFeatureDialog(BuildContext context, String title) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E2B45),
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        content: Text('قسم "$title" جاهز للربط بالعمليات الحسابية، تامرني أمر!', style: const TextStyle(color: Colors.white70)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('حسناً', style: TextStyle(color: Color(0xFF38BDF8))),
-          ),
-        ],
+  void _navigateToScreen(BuildContext context, String title) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AccountsScreen(title: title),
       ),
     );
   }
@@ -61,7 +54,7 @@ class DashboardScreen extends StatelessWidget {
               mainAxisSpacing: 16,
               childAspectRatio: 1.0,
               children: [
-                // 1. نقطة بيع / شاشة بيع
+                // 1. شاشة بيع
                 _buildMenuBtn(
                   context,
                   title: 'شاشة بيع',
@@ -77,7 +70,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'قائمة شراء',
                   icon: Icons.receipt_long_outlined,
                   iconColor: const Color(0xFF818CF8),
-                  onTap: () => _showFeatureDialog(context, 'قائمة شراء'),
+                  onTap: () => _navigateToScreen(context, 'قائمة شراء'),
                 ),
                 // 3. عرض المواد
                 _buildMenuBtn(
@@ -115,7 +108,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'إضافة حساب',
                   icon: Icons.person_add_alt_1_outlined,
                   iconColor: const Color(0xFFFACC15),
-                  onTap: () => _showFeatureDialog(context, 'إضافة حساب'),
+                  onTap: () => _navigateToScreen(context, 'إضافة حساب'),
                 ),
                 // 7. سند قبض
                 _buildMenuBtn(
@@ -123,7 +116,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'سند قبض',
                   icon: Icons.receipt_sharp,
                   iconColor: const Color(0xFF4ADE80),
-                  onTap: () => _showFeatureDialog(context, 'سند قبض'),
+                  onTap: () => _navigateToScreen(context, 'سند قبض'),
                 ),
                 // 8. أرصدة الحسابات
                 _buildMenuBtn(
@@ -131,7 +124,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'أرصدة الحسابات',
                   icon: Icons.request_quote_outlined,
                   iconColor: const Color(0xFFF43F5E),
-                  onTap: () => _showFeatureDialog(context, 'أرصدة الحسابات'),
+                  onTap: () => _navigateToScreen(context, 'أرصدة الحسابات'),
                 ),
                 // 9. دمج قاعدة البيانات
                 _buildMenuBtn(
@@ -139,7 +132,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'دمج قاعدة البيانات',
                   icon: Icons.cloud_sync_outlined,
                   iconColor: const Color(0xFF34D399),
-                  onTap: () => _showFeatureDialog(context, 'دمج قاعدة البيانات'),
+                  onTap: () => _navigateToScreen(context, 'دمج قاعدة البيانات'),
                 ),
                 // 10. كشف حساب
                 _buildMenuBtn(
@@ -147,7 +140,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'كشف حساب',
                   icon: Icons.badge_outlined,
                   iconColor: const Color(0xFFEC4899),
-                  onTap: () => _showFeatureDialog(context, 'كشف حساب'),
+                  onTap: () => _navigateToScreen(context, 'كشف حساب'),
                 ),
                 // 11. سند صرف
                 _buildMenuBtn(
@@ -155,7 +148,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'سند صرف',
                   icon: Icons.receipt_long,
                   iconColor: const Color(0xFF38BDF8),
-                  onTap: () => _showFeatureDialog(context, 'سند صرف'),
+                  onTap: () => _navigateToScreen(context, 'سند صرف'),
                 ),
                 // 12. قائمة بيع
                 _buildMenuBtn(
@@ -173,7 +166,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'سند دفع',
                   icon: Icons.local_offer_outlined,
                   iconColor: const Color(0xFF4ADE80),
-                  onTap: () => _showFeatureDialog(context, 'سند دفع'),
+                  onTap: () => _navigateToScreen(context, 'سند دفع'),
                 ),
                 // 14. المطابقة اليومية
                 _buildMenuBtn(
@@ -181,7 +174,7 @@ class DashboardScreen extends StatelessWidget {
                   title: 'المطابقة اليومية',
                   icon: Icons.crop_portrait_outlined,
                   iconColor: const Color(0xFFEF4444),
-                  onTap: () => _showFeatureDialog(context, 'المطابقة اليومية'),
+                  onTap: () => _navigateToScreen(context, 'المطابقة اليومية'),
                 ),
               ],
             ),
