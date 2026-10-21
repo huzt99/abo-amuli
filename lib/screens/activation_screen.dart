@@ -17,22 +17,20 @@ class _ActivationScreenState extends State<ActivationScreen> {
   final TextEditingController _passController = TextEditingController();  // الرمز
   final TextEditingController _codeController = TextEditingController();  // كود التفعيل
 
-  bool _isAccountCreated = false; // لمتابعة التنقل للخزانة الثانية (كود التفعيل)
+  bool _isAccountCreated = false; 
   bool _isLoading = false;
 
-  // فتح رابط الواتساب الشغال
   Future<void> _openWhatsApp() async {
     final Uri url = Uri.parse('https://wa.me/9647862597668?text=${Uri.encodeComponent('السلام عليكم، قمت بتسجيل حساب باسم: ${_loginController.text} وأريد كود التفعيل.')}');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح الواتساب')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح الواتساب')));
     }
   }
 
-  // فتح رابط التليجرام الشغال
   Future<void> _openTelegram() async {
     final Uri url = Uri.parse('https://t.me/huzt92');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح التليجرام')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح التليجرام')));
     }
   }
 
@@ -42,7 +40,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
     String loginInput = _loginController.text.trim();
     String passInput = _passController.text.trim();
 
-    // 1. الدخول الخاص بك كأدمن ماستر (أبو مؤمل)
+    // 1. الدخول الخاص بك كأدمن ماستر
     if (loginInput == 'huzt.m1@gmail.com' && passInput == '20819921992') {
       Navigator.pushReplacement(
         context,
@@ -51,7 +49,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
       return;
     }
 
-    // 2. إذا لم يكن قد انتقل لخانة التفعيل بعد
+    // 2. الانتقال لصفحة إدخال كود التفعيل
     if (!_isAccountCreated) {
       setState(() {
         _isAccountCreated = true;
@@ -59,15 +57,21 @@ class _ActivationScreenState extends State<ActivationScreen> {
       return;
     }
 
-    // 3. معالجة إدخال كود التفعيل للزبون
+    // 3. معالجة إدخال كود التفعيل
     String activationCode = _codeController.text.trim();
     if (activationCode == '20319920') {
       setState(() => _isLoading = true);
 
-      // إرسال الإشعار لتليجرام الأدمن
+      // حفظ بيانات الزبون الحقيقية محلياً وفي السحابة
+      await ActivationService.savePendingUser(
+        username: loginInput,
+        email: loginInput.contains('@') ? loginInput : '$loginInput@client.com',
+      );
+
+      // إرسال الإشعار المباشر للتلغرام
       await ActivationService.sendTelegramActivationRequest(
-        fullName: 'زبون جديد',
-        email: loginInput.contains('@') ? loginInput : 'لا يوجد',
+        fullName: loginInput,
+        email: loginInput.contains('@') ? loginInput : 'غير محدد',
         username: loginInput,
         phone: 'عبر التطبيق',
       );
@@ -76,7 +80,6 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
       if (!mounted) return;
 
-      // إظهار تنبيه الانتظار وقفل الحساب
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -91,7 +94,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
             ],
           ),
           content: const Text(
-            'رجاءً انتظر موافقة المطور!\n\nتم إرسال طلبك وسيتم مراجعة الدفع وتفعيل حسابك فوراً.',
+            'رجاءً انتظر موافقة المطور!\n\nتم إرسال طلبك بنجاح، وسيتم مراجعة الحساب وتفعيله فوراً.',
             style: TextStyle(color: Colors.white70, height: 1.4),
           ),
           actions: [
@@ -136,14 +139,12 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // الخانة الأولى: إيميل أو يوزر نيم + رمز
                   if (!_isAccountCreated) ...[
                     _buildField(_loginController, 'البريد الإلكتروني أو اسم المستخدم', Icons.person),
                     const SizedBox(height: 12),
                     _buildField(_passController, 'كلمة المرور', Icons.lock, isPassword: true),
                   ],
 
-                  // الخانة الثانية: كود التفعيل مع أزرار التواصل الشغالة
                   if (_isAccountCreated) ...[
                     _buildField(_codeController, 'أدخل كود التفعيل', Icons.vpn_key, isPassword: true),
                     const SizedBox(height: 16),
@@ -187,6 +188,20 @@ class _ActivationScreenState extends State<ActivationScreen> {
                             ),
                     ),
                   ),
+
+                  // زر الرجوع المضاف حديثاً
+                  if (_isAccountCreated) ...[
+                    const SizedBox(height: 10),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _isAccountCreated = false;
+                        });
+                      },
+                      icon: const Icon(Icons.arrow_back, color: Colors.white60, size: 16),
+                      label: const Text('رجوع لتعديل البيانات', style: TextStyle(color: Colors.white60, fontSize: 13)),
+                    ),
+                  ],
                 ],
               ),
             ),
