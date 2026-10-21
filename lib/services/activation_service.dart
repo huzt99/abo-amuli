@@ -3,14 +3,15 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ActivationService {
+  // تم تصحيح المفاتيح بأسلوب يمنع تداخل الرموز
   static const String binId = '6ad894f0ffd5d160537f0188';
-  static const String masterKey = r'$2a$10$4Tc0iksgy9.hUeH4n5LeCewNlWf46yUlr5vu5DfgU3KVbieJF5OvK';
-  static const String accessKey = r'$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG';
+  static const String masterKey = '\$2a\$10\$4Tc0iksgy9.hUeH4n5LeCewNlWf46yUlr5vu5DfgU3KVbieJF5OvK';
+  static const String accessKey = '\$2a\$10\$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG';
 
   static const String telegramBotToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
   static const String telegramChatId = '6590858813';
 
-  // --- التحقق والتخزين المحلي ---
+  // --- التخزين المحلي ---
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_activated') ?? false;
@@ -21,7 +22,7 @@ class ActivationService {
     await prefs.setBool('is_activated', value);
   }
 
-  // --- جلب البيانات السحابية مع تصحيح الهيكل ---
+  // --- جلب قائمة المستخدمين من السحابة ---
   static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
     try {
       final response = await http.get(
@@ -30,34 +31,36 @@ class ActivationService {
           'X-Master-Key': masterKey,
           'X-Access-Key': accessKey,
         },
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data != null && data['record'] != null) {
-          var record = data['record'];
-          if (record is Map && record.containsKey('users') && record['users'] is List) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        if (data.containsKey('record') && data['record'] is Map) {
+          final record = data['record'];
+          if (record.containsKey('users') && record['users'] is List) {
             List list = record['users'];
             return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           }
         }
       }
     } catch (e) {
-      print('خطأ جلب السحابة: $e');
+      print('خطأ في جلب بيانات السحابة: $e');
     }
     return [];
   }
 
-  // --- حفظ طلب زبون جديد سحابياً ---
+  // --- تسجيل زبون جديد وحفظه بالسحابة ---
   static Future<bool> registerUserDual({required String username, required String email}) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
       
+      // إزالة أي سجل قديم لنفس الاسم وتحديثه
       users.removeWhere((u) => u['username'] == username);
       users.add({
         'username': username,
         'email': email,
         'status': 'معلق ⏳',
+        'date': DateTime.now().toString().split('.')[0],
       });
 
       final response = await http.put(
@@ -67,15 +70,16 @@ class ActivationService {
           'X-Master-Key': masterKey,
         },
         body: jsonEncode({'users': users}),
-      );
+      ).timeout(const Duration(seconds: 8));
 
       return response.statusCode == 200;
     } catch (e) {
+      print('خطأ في رفع البيانات للسحابة: $e');
       return false;
     }
   }
 
-  // --- فحص تفعيل الزبون سحابياً ---
+  // --- فحص هل الحساب مفعل بالسحابة ---
   static Future<bool> checkUserActivationDual(String username) async {
     List<Map<String, dynamic>> users = await fetchUsersFromCloud();
     for (var u in users) {
@@ -87,7 +91,7 @@ class ActivationService {
     return false;
   }
 
-  // --- موافقة الأدمن وحفظها سحابياً ---
+  // --- موافقة الأدمن والتفعيل الدائم بالسحابة ---
   static Future<bool> approveUserDual(String username) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
@@ -104,29 +108,39 @@ class ActivationService {
           'X-Master-Key': masterKey,
         },
         body: jsonEncode({'users': users}),
-      );
+      ).timeout(const Duration(seconds: 8));
 
       return response.statusCode == 200;
     } catch (e) {
+      print('خطأ في التفعيل السحابي: $e');
       return false;
     }
   }
 
-  // --- إرسال إشعار التليجرام المباشر ---
+  // --- إرسال إشعار التليجرام الفوري ---
   static Future<bool> sendTelegramActivationRequest({
     required String username,
     required String email,
   }) async {
-    final String message = '🚨 طلب تفعيل برنامج جديد!\n'
+    final String textMsg = '🚨 طلب تفعيل برنامج جديد!\n\n'
         '👤 المستخدم: $username\n'
         '📧 البريد: $email\n'
         '⏱ الوقت: ${DateTime.now().toString().split('.')[0]}';
 
     try {
-      final url = Uri.parse('https://api.telegram.org/bot$telegramBotToken/sendMessage?chat_id=$telegramChatId&text=${Uri.encodeComponent(message)}');
-      final response = await http.get(url);
+      final url = Uri.parse('https://api.telegram.org/bot$telegramBotToken/sendMessage');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'chat_id': telegramChatId,
+          'text': textMsg,
+        }),
+      ).timeout(const Duration(seconds: 8));
+
       return response.statusCode == 200;
     } catch (e) {
+      print('خطأ إرسال التليجرام: $e');
       return false;
     }
   }
