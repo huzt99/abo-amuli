@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../database/database_helper.dart';
 
 class PosScreen extends StatefulWidget {
@@ -11,144 +9,221 @@ class PosScreen extends StatefulWidget {
 }
 
 class _PosScreenState extends State<PosScreen> {
-  List<Map<String, dynamic>> _touchProducts = [];
-  final List<Map<String, dynamic>> _cart = [];
+  // إنشاء 10 قوائم افتراضية للزبائن
+  final List<String> _customerLists = List.generate(10, (index) => 'قائمة بيع رقم ${index + 1}');
+
+  void _addNewList() {
+    setState(() {
+      _customerLists.add('قائمة بيع رقم ${_customerLists.length + 1}');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F172A),
+      appBar: AppBar(
+        title: const Text('نقطة البيع (اختر قائمة الزبون)'),
+        backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle, color: Color(0xFF10B981)),
+            onPressed: _addNewList,
+            tooltip: 'إضافة قائمة جديدة',
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: GridView.builder(
+          gridCount: 2,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          itemCount: _customerLists.length,
+          itemBuilder: (context, index) {
+            final listName = _customerLists[index];
+            return InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CustomerCartScreen(listName: listName),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF3B82F6), width: 1.5),
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.receipt_long, size: 48, color: Color(0xFF3B82F6)),
+                    const SizedBox(height: 12),
+                    Text(
+                      listName,
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'اضغط للفتح والبيع',
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// نافذة القائمة الخاصة بالزبون (تحتوي على الباركود والمواد بدون باركود وإتمام البيع)
+class CustomerCartScreen extends StatefulWidget {
+  final String listName;
+  const CustomerCartScreen({super.key, required this.listName});
+
+  @override
+  State<CustomerCartScreen> createState() => _CustomerCartScreenState();
+}
+
+class _CustomerCartScreenState extends State<CustomerCartScreen> {
+  final _barcodeController = TextEditingController();
+  final List<Map<String, dynamic>> _cartItems = [];
+  List<Map<String, dynamic>> _allProducts = [];
   bool _isLoading = true;
-  final TextEditingController _barcodeController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadTouchProducts();
+    _loadStoreProducts();
   }
 
-  Future<void> _loadTouchProducts() async {
-    final products = await DatabaseHelper.instance.getTouchProducts();
+  void _loadStoreProducts() async {
+    final products = await DatabaseHelper.instance.getAllProducts();
     setState(() {
-      _touchProducts = products;
+      _allProducts = products;
       _isLoading = false;
     });
   }
 
-  Future<void> _scanAndAddBarcode(String barcode) async {
-    if (barcode.trim().isEmpty) return;
-    final allProducts = await DatabaseHelper.instance.getAllProducts();
-    final product = allProducts.firstWhere(
+  void _addItemByBarcode(String barcode) async {
+    if (barcode.isEmpty) return;
+    final match = _allProducts.firstWhere(
       (p) => p['barcode'].toString().trim() == barcode.trim(),
       orElse: () => {},
     );
 
-    if (product.isNotEmpty) {
-      _addToCart(product);
+    if (match.isNotEmpty) {
+      setState(() {
+        int existingIndex = _cartItems.indexWhere((item) => item['id'] == match['id']);
+        if (existingIndex >= 0) {
+          _cartItems[existingIndex]['sold_qty'] += 1.0;
+        } else {
+          Map<String, dynamic> cartItem = Map.from(match);
+          cartItem['sold_qty'] = 1.0;
+          _cartItems.add(cartItem);
+        }
+      });
       _barcodeController.clear();
     } else {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('المنتج بالباركود $barcode غير موجود بالمخزن!'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('المادة غير موجودة في المخزن'), backgroundColor: Colors.red),
       );
     }
   }
 
-  // دالة طلب إذن الكاميرا وفتحها بذكاء
-  Future<void> _openCameraScanner() async {
-    var status = await Permission.camera.request();
-    if (status.isGranted) {
-      if (!mounted) return;
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (context) {
-          return SizedBox(
-            height: 400,
-            child: Column(
-              children: [
-                AppBar(
-                  title: const Text('وجّه الكاميرا نحو الباركود'),
-                  automaticallyImplyLeading: false,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  ],
-                ),
-                Expanded(
-                  child: MobileScanner(
-                    onDetect: (capture) {
-                      final List<Barcode> barcodes = capture.barcodes;
-                      for (final barcode in barcodes) {
-                        if (barcode.rawValue != null) {
-                          final String code = barcode.rawValue!;
-                          Navigator.pop(context);
-                          _scanAndAddBarcode(code);
-                          break;
-                        }
-                      }
+  void _showNoBarcodeDialog() {
+    final noBcProducts = _allProducts.where((p) => p['barcode'].toString().startsWith('NO_BC_')).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: const Text('اختر مادة بدون باركود', style: TextStyle(color: Colors.white)),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: noBcProducts.isEmpty
+                ? const Text('لا توجد مواد بدون باركود مضافة', style: TextStyle(color: Colors.white54))
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: noBcProducts.length,
+                    itemBuilder: (context, index) {
+                      final product = noBcProducts[index];
+                      return ListTile(
+                        title: Text(product['name'], style: const TextStyle(color: Colors.white)),
+                        subtitle: Text('السعر: ${product['sell_price']} دينار', style: const TextStyle(color: Colors.greenAccent)),
+                        trailing: ElevatedButton(
+                          child: const Text('إضافة'),
+                          onPressed: () {
+                            setState(() {
+                              int existingIndex = _cartItems.indexWhere((item) => item['id'] == product['id']);
+                              if (existingIndex >= 0) {
+                                _cartItems[existingIndex]['sold_qty'] += 1.0;
+                              } else {
+                                Map<String, dynamic> cartItem = Map.from(product);
+                                cartItem['sold_qty'] = 1.0;
+                                _cartItems.add(cartItem);
+                              }
+                            });
+                            Navigator.pop(context);
+                          },
+                        ),
+                      );
                     },
                   ),
-                ),
-              ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إغلاق', style: TextStyle(color: Colors.blueAccent)),
             ),
-          );
-        },
-      );
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('يرجى إعطاء صلاحية استخدام الكاميرا من إعدادات الموبايل'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
+          ],
+        );
+      },
+    );
   }
 
-  void _addToCart(Map<String, dynamic> product) {
-    setState(() {
-      int index = _cart.indexWhere((item) => item['id'] == product['id']);
-      if (index >= 0) {
-        _cart[index]['cart_qty'] += 1.0;
-      } else {
-        _cart.add({
-          'id': product['id'],
-          'name': product['name'],
-          'price': product['price'],
-          'cart_qty': 1.0,
-        });
-      }
-    });
-  }
-
-  double get _cartTotal {
+  double get _totalAmount {
     double total = 0;
-    for (var item in _cart) {
-      total += (item['price'] as double) * (item['cart_qty'] as double);
+    for (var item in _cartItems) {
+      double price = (item['sell_price'] as num).toDouble();
+      double qty = (item['sold_qty'] as num).toDouble();
+      total += price * qty;
     }
     return total;
   }
 
-  Future<void> _checkout() async {
-    if (_cart.isEmpty) return;
+  void _checkoutList() async {
+    if (_cartItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('القائمة فارغة'), backgroundColor: Colors.red),
+      );
+      return;
+    }
 
     try {
-      await DatabaseHelper.instance.completeSale(_cart, _cartTotal);
-      setState(() {
-        _cart.clear();
-      });
+      await DatabaseHelper.instance.completeSale(_cartItems, _totalAmount);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تمت عملية البيع بنجاح وطباعة الفاتورة!'),
-          backgroundColor: Colors.green,
-        ),
+        SnackBar(content: Text('تم البيع بنجاح وحفظ القائمة (${widget.listName})!'), backgroundColor: Colors.green),
       );
-      _loadTouchProducts();
+      setState(() {
+        _cartItems.clear();
+      });
+      Navigator.pop(context);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('خطأ في إتمام البيع: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -158,205 +233,79 @@ class _PosScreenState extends State<PosScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('نقطة البيع السريع (POS)', style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: Text(widget.listName),
         backgroundColor: const Color(0xFF1E293B),
-        iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner, color: Colors.greenAccent, size: 28),
-            onPressed: _openCameraScanner,
-            tooltip: 'فحص باركود بالكاميرا',
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: const Color(0xFF1E293B),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _barcodeController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: 'امسح أو اكتب الباركود هنا...',
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      prefixIcon: const Icon(Icons.barcode_reader, color: Colors.blueAccent),
-                      filled: true,
-                      fillColor: const Color(0xFF0F172A),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide.none,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _barcodeController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            labelText: 'امسح أو اكتب الباركود هنا',
+                            labelStyle: const TextStyle(color: Colors.white70),
+                            filled: true,
+                            fillColor: const Color(0xFF1E293B),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onSubmitted: _addItemByBarcode,
+                        ),
                       ),
-                    ),
-                    onSubmitted: (value) => _scanAndAddBarcode(value),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  icon: const Icon(Icons.camera_alt, color: Colors.white),
-                  onPressed: _openCameraScanner,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 3,
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent))
-                      : _touchProducts.isEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.all(20.0),
-                                child: Text(
-                                  'لا توجد مواد مضافة لأزرار اللمس.\nأضف مواد من شاشة "إضافة منتج" وفعل خيار الإظهار.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                                ),
-                              ),
-                            )
-                          : Padding(
-                              padding: const EdgeInsets.all(10.0),
-                              child: GridView.builder(
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  crossAxisSpacing: 8,
-                                  mainAxisSpacing: 8,
-                                  childAspectRatio: 1.2,
-                                ),
-                                itemCount: _touchProducts.length,
-                                itemBuilder: (context, index) {
-                                  final product = _touchProducts[index];
-                                  return InkWell(
-                                    onTap: () => _addToCart(product),
-                                    borderRadius: BorderRadius.circular(14),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF1E293B),
-                                        borderRadius: BorderRadius.circular(14),
-                                        border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                                      ),
-                                      padding: const EdgeInsets.all(10),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Text(
-                                            product['name'],
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const Spacer(),
-                                          Text(
-                                            '${product['price']} د.ع',
-                                            style: const TextStyle(
-                                              color: Color(0xFF34D399),
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF1E293B),
-                      border: Border(right: BorderSide(color: Color(0xFF334155))),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          color: const Color(0xFF0F172A),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('سلة المبيعات', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                              Icon(Icons.shopping_cart_outlined, color: Colors.white70, size: 18),
-                            ],
-                          ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _showNoBarcodeDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF3B82F6),
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                         ),
-                        Expanded(
-                          child: _cart.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    'السلة فارغة',
-                                    style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                        child: const Text('بدون باركود'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: _cartItems.isEmpty
+                        ? const Center(child: Text('السلة فارغة، أضف مواد للبيع', style: TextStyle(color: Colors.white54)))
+                        : ListView.builder(
+                            itemCount: _cartItems.length,
+                            itemBuilder: (context, index) {
+                              final item = _cartItems[index];
+                              return Card(
+                                color: const Color(0xFF1E293B),
+                                child: ListTile(
+                                  title: Text(item['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  subtitle: Text('الكمية المباعة: ${item['sold_qty']} | السعر: ${item['sell_price']} د.ع', style: const TextStyle(color: Colors.white70)),
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                    onPressed: () => setState(() => _cartItems.removeAt(index)),
                                   ),
-                                )
-                              : ListView.builder(
-                                  itemCount: _cart.length,
-                                  itemBuilder: (context, index) {
-                                    final item = _cart[index];
-                                    return ListTile(
-                                      dense: true,
-                                      title: Text(item['name'], style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                                      subtitle: Text('${item['price']} × ${item['cart_qty']}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
-                                      trailing: Text(
-                                        '${(item['price'] * item['cart_qty'])} د',
-                                        style: const TextStyle(color: Color(0xFF34D399), fontWeight: FontWeight.bold, fontSize: 11),
-                                      ),
-                                    );
-                                  },
                                 ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          color: const Color(0xFF0F172A),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  const Text('المجموع:', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                  Text('$_cartTotal د.ع', style: const TextStyle(color: Color(0xFF34D399), fontSize: 14, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF10B981),
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                ),
-                                onPressed: _checkout,
-                                child: const Text('إتمام البيع', style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.bold)),
-                              ),
-                            ],
+                              );
+                            },
                           ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-              ],
+                  const Divider(color: Colors.white24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('المجموع الكلي: $_totalAmount د.ع', style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+                      ElevatedButton(
+                        onPressed: _checkoutList,
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+                        child: const Text('بيع القائمة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
     );
   }
 }
