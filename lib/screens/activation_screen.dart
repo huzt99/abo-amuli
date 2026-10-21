@@ -22,17 +22,28 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
   final TextEditingController _loginUserControl = TextEditingController();
   final TextEditingController _loginPassControl = TextEditingController();
 
-  bool _isStepTwoCode = false; // التحكم بإظهار التفعيل بعد إدخال البيانات الضغط على "تسجيل"
+  bool _isStepTwoCode = false;
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _checkSavedActivation();
+    _checkSavedSession();
   }
 
-  Future<void> _checkSavedActivation() async {
+  Future<void> _checkSavedSession() async {
+    // التحقق هل الأدمن مسجل الدخول مسبقاً؟
+    bool isAdmin = await ActivationService.isAdminLoggedIn();
+    if (isAdmin && mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AdminApprovalScreen()),
+      );
+      return;
+    }
+
+    // التحقق هل الزبون مفعل مسبقاً؟
     bool isActivated = await ActivationService.isLocalActivated();
     if (isActivated && mounted) {
       _navigateToMainDashboard();
@@ -65,15 +76,13 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     await launchUrl(url, mode: LaunchMode.externalApplication);
   }
 
-  // الخطوة 1: عند الضغط على زر "تسجيل الحساب"
   void _onRegisterSubmit() {
     if (!_registerFormKey.currentState!.validate()) return;
     setState(() {
-      _isStepTwoCode = true; // الانقال فوراً لشاشة إدخال كود التفعيل وحساباتك
+      _isStepTwoCode = true;
     });
   }
 
-  // الخطوة 2: عند الضغط على زر "تفعيل الحساب"
   void _onActivationSubmit() async {
     String username = _regUserControl.text.trim();
     String code = _regCodeControl.text.trim();
@@ -89,10 +98,10 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
       setState(() => _isLoading = true);
       String email = username.contains('@') ? username : '$username@client.com';
 
-      // حفظ الطلب بالسحابة والذاكرة المحلية
+      // حفظ بالسحابة والمحلي
       await ActivationService.registerUserDual(username: username, email: email);
 
-      // إرسال إشعار التليجرام الفوري لك
+      // إرسال إشعار التليجرام
       await ActivationService.sendTelegramActivationRequest(username: username, email: email);
 
       setState(() => _isLoading = false);
@@ -131,15 +140,16 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     }
   }
 
-  // تسجيل الدخول (للأدمن وللمستخدمين)
   void _handleLogin() async {
     if (!_loginFormKey.currentState!.validate()) return;
 
     String userInput = _loginUserControl.text.trim();
     String passInput = _loginPassControl.text.trim();
 
-    // دخول الأدمن الماستر الخاص بك
+    // دخول الأدمن الماستر
     if (userInput == 'huzt.m1@gmail.com' && passInput == '20819921992') {
+      await ActivationService.setAdminLoggedIn(true); // حفظ جلسة الأدمن دائمياً
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AdminApprovalScreen()),
@@ -148,9 +158,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     }
 
     setState(() => _isLoading = true);
-
     bool isActivated = await ActivationService.checkUserActivationDual(userInput);
-
     setState(() => _isLoading = false);
 
     if (isActivated) {
@@ -203,12 +211,10 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                   child: TabBarView(
                     controller: _tabController,
                     children: [
-                      // --- تبويب إنشاء حساب جديد ---
                       Form(
                         key: _registerFormKey,
                         child: Column(
                           children: [
-                            // الخطوة 1: أدخل البيانات فقط
                             if (!_isStepTwoCode) ...[
                               _buildField(_regUserControl, 'اسم المستخدم أو البريد', Icons.person),
                               const SizedBox(height: 12),
@@ -224,8 +230,6 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                                 ),
                               ),
                             ],
-
-                            // الخطوة 2: تظهر نافذة التفعيل وأزرار التواصل فقط بعد الضغط على تسجيل الحساب
                             if (_isStepTwoCode) ...[
                               _buildField(_regCodeControl, 'أدخل كود التفعيل', Icons.vpn_key, isPassword: true),
                               const SizedBox(height: 14),
@@ -273,8 +277,6 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                           ],
                         ),
                       ),
-
-                      // --- تبويب تسجيل الدخول ---
                       Form(
                         key: _loginFormKey,
                         child: Column(
