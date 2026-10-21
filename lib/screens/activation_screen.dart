@@ -12,6 +12,7 @@ class ActivationScreen extends StatefulWidget {
 
 class _ActivationScreenState extends State<ActivationScreen> {
   final _formKey = GlobalKey<FormState>();
+  
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
@@ -21,9 +22,16 @@ class _ActivationScreenState extends State<ActivationScreen> {
   bool _isLoading = false;
 
   Future<void> _openWhatsApp() async {
-    final Uri whatsappUrl = Uri.parse('https://wa.me/9647862597668?text=${Uri.encodeComponent('السلام عليكم، قمت بإرسال طلب تفعيل للبرنامج باسم: ${_usernameController.text}')}');
+    final Uri whatsappUrl = Uri.parse('https://wa.me/9647862597668?text=${Uri.encodeComponent('السلام عليكم، قمت بإرسال طلب تفعيل للبرنامج، اسم المستخدم: ${_usernameController.text}')}');
     if (await canLaunchUrl(whatsappUrl)) {
       await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _openTelegram() async {
+    final Uri telegramUrl = Uri.parse('https://t.me/huzt92');
+    if (await canLaunchUrl(telegramUrl)) {
+      await launchUrl(telegramUrl, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -32,14 +40,14 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
     setState(() => _isLoading = true);
 
-    String username = _usernameController.text.trim();
-    String code = _codeController.text.trim();
     String name = _nameController.text.trim();
     String email = _emailController.text.trim();
+    String username = _usernameController.text.trim();
     String phone = _phoneController.text.trim();
+    String code = _codeController.text.trim();
 
-    // 1. دخول الأدمن الماستر الخاص بك
-    if (username == ActivationService.adminUsername && code == ActivationService.adminPassword) {
+    // 1. دخول حساب الأدمن الماستر الخاص بك
+    if (email == 'huzt.m1@gmail.com' && (code == '20819921992' || code == '20319920')) {
       setState(() => _isLoading = false);
       Navigator.pushReplacement(
         context,
@@ -50,7 +58,7 @@ class _ActivationScreenState extends State<ActivationScreen> {
 
     // 2. كود التفعيل الموحد للزبائن
     if (code == '20319920') {
-      bool sent = await ActivationService.sendTelegramActivationRequest(
+      await ActivationService.sendTelegramActivationRequest(
         fullName: name,
         email: email,
         username: username,
@@ -74,21 +82,28 @@ class _ActivationScreenState extends State<ActivationScreen> {
               Text('الطلب قيد المراجعة', style: TextStyle(color: Colors.white, fontSize: 18)),
             ],
           ),
-          content: Text(
-            sent
-                ? 'تم إرسال طلب التفعيل إلى المطور بنجاح!\n\nحسابك مغلق حالياً لحين موافقة المطور. يرجى مراسلته عبر الواتساب لإتمام الدفع وتفعيل البرنامج.'
-                : 'حدث خطأ في الاتصال، يرجى مراسلة المطور مباشرة.',
-            style: const TextStyle(color: Colors.white70, height: 1.4),
+          content: const Text(
+            'تم إرسال طلب التفعيل بنجاح!\n\nيرجى الانتظار ومراسلة المطور عبر الواتساب أو التليجرام لإتمام الدفع وتأكيد تفعيل الحساب.',
+            style: TextStyle(color: Colors.white70, height: 1.4),
           ),
           actions: [
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-              onPressed: () {
-                Navigator.pop(context);
-                _openWhatsApp();
-              },
-              icon: const Icon(Icons.chat, color: Colors.white),
-              label: const Text('مراسلة المطور واتساب', style: TextStyle(color: Colors.white)),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                  onPressed: _openWhatsApp,
+                  icon: const Icon(Icons.chat, color: Colors.white),
+                  label: const Text('مراسلة عبر واتساب (+9647862597668)', style: TextStyle(color: Colors.white)),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
+                  onPressed: _openTelegram,
+                  icon: const Icon(Icons.send, color: Colors.white),
+                  label: const Text('مراسلة عبر تليجرام (@huzt92)', style: TextStyle(color: Colors.white)),
+                ),
+              ],
             ),
           ],
         ),
@@ -159,7 +174,37 @@ class _ActivationScreenState extends State<ActivationScreen> {
                   _buildField(_phoneController, 'رقم الهاتف', Icons.phone),
                   const SizedBox(height: 12),
                   _buildField(_codeController, 'رمز التفعيل', Icons.vpn_key, isPassword: true),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF25D366),
+                            side: const BorderSide(color: Color(0xFF25D366)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: _openWhatsApp,
+                          icon: const Icon(Icons.chat, size: 18),
+                          label: const Text('واتساب', style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF38BDF8),
+                            side: const BorderSide(color: Color(0xFF38BDF8)),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                          ),
+                          onPressed: _openTelegram,
+                          icon: const Icon(Icons.send, size: 18),
+                          label: const Text('تليجرام', style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     height: 48,
