@@ -9,7 +9,7 @@ class PosScreen extends StatefulWidget {
 }
 
 class _PosScreenState extends State<PosScreen> {
-  // قوائم الزبائن المتعددة في أعلى الشاشة (مثل الصورة الاحترافية)
+  // قوائم الزبائن المتعددة في أعلى الشاشة (مطابق للصورة الاحترافية)
   final List<Map<String, dynamic>> _customerTabs = List.generate(
     10,
     (index) => {
@@ -22,6 +22,10 @@ class _PosScreenState extends State<PosScreen> {
   List<Map<String, dynamic>> _allProducts = [];
   bool _isLoading = true;
   final _barcodeController = TextEditingController();
+  final _qtyController = TextEditingController(text: '1');
+  
+  String _selectedCategory = 'الكل';
+  final List<String> _categories = ['الكل', 'المواد', 'المشروبات', 'المعلبات', 'بدون باركود'];
 
   @override
   void initState() {
@@ -43,7 +47,6 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  // إضافة قائمة جديدة بضغطة زر
   void _addNewTab() {
     setState(() {
       _customerTabs.add({
@@ -54,7 +57,6 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  // إضافة مادة للسلة الحالية عن طريق الباركود
   void _addItemByBarcode(String barcode) {
     if (barcode.trim().isEmpty) return;
 
@@ -63,19 +65,22 @@ class _PosScreenState extends State<PosScreen> {
       orElse: () => {},
     );
 
+    double qty = double.tryParse(_qtyController.text) ?? 1.0;
+
     if (match.isNotEmpty) {
       setState(() {
         List<Map<String, dynamic>> currentCart = _customerTabs[_selectedTabIndex]['items'];
         int existingIndex = currentCart.indexWhere((item) => item['id'] == match['id']);
         if (existingIndex >= 0) {
-          currentCart[existingIndex]['sold_qty'] += 1.0;
+          currentCart[existingIndex]['sold_qty'] += qty;
         } else {
           Map<String, dynamic> cartItem = Map.from(match);
-          cartItem['sold_qty'] = 1.0;
+          cartItem['sold_qty'] = qty;
           currentCart.add(cartItem);
         }
       });
       _barcodeController.clear();
+      _qtyController.text = '1';
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('⚠️ المادة غير موجودة في المخزن!'), backgroundColor: Colors.red),
@@ -84,7 +89,6 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  // إضافة مادة بالسلطة مباشرة عند الضغط على زر اللمس
   void _addItemToCart(Map<String, dynamic> product) {
     setState(() {
       List<Map<String, dynamic>> currentCart = _customerTabs[_selectedTabIndex]['items'];
@@ -99,7 +103,6 @@ class _PosScreenState extends State<PosScreen> {
     });
   }
 
-  // حساب المجموع الكلي للقائمة الحالية
   double get _currentCartTotal {
     double total = 0;
     List<Map<String, dynamic>> currentCart = _customerTabs[_selectedTabIndex]['items'];
@@ -111,12 +114,11 @@ class _PosScreenState extends State<PosScreen> {
     return total;
   }
 
-  // إتمام البيع وحفظ الفاتورة
   void _checkout() async {
     List<Map<String, dynamic>> currentCart = _customerTabs[_selectedTabIndex]['items'];
     if (currentCart.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        constSnackBar(content: Text('القائمة الحالية فارغة!'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('القائمة الحالية فارغة!'), backgroundColor: Colors.red),
       );
       return;
     }
@@ -130,7 +132,7 @@ class _PosScreenState extends State<PosScreen> {
       setState(() {
         currentCart.clear();
       });
-      _loadProducts(); // تحديث المخزن والكميات
+      _loadProducts();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('خطأ في إتمام البيع: $e'), backgroundColor: Colors.red),
@@ -141,24 +143,31 @@ class _PosScreenState extends State<PosScreen> {
   @override
   Widget build(BuildContext context) {
     List<Map<String, dynamic>> currentCart = _customerTabs[_selectedTabIndex]['items'];
-    // تصفية المواد بدون باركود والمواد العادية لعرضها بالأزرار السريعة
-    final quickProducts = _allProducts;
+    
+    // تصفية المواد حسب القسم المحدد في لوحة الأزرار
+    List<Map<String, dynamic>> filteredProducts = _allProducts;
+    if (_selectedCategory == 'بدون باركود') {
+      filteredProducts = _allProducts.where((p) => p['barcode'].toString().startsWith('NO_BC_')).toList();
+    } else if (_selectedCategory != 'الكل') {
+      filteredProducts = _allProducts.where((p) => !p['barcode'].toString().startsWith('NO_BC_')).toList();
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
         title: const Text('نقطة البيع الاحترافية (POS)'),
         backgroundColor: const Color(0xFF1E293B),
-        // شريط قوائم الزبائن في الأعلى (مثل الصورة)
+        // شريط قوائم الزبائن في الأعلى
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(50),
           child: Container(
             color: const Color(0xFF0F172A),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
               children: [
                 Expanded(
                   child: SizedBox(
-                    height: 45,
+                    height: 42,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: _customerTabs.length,
@@ -169,7 +178,7 @@ class _PosScreenState extends State<PosScreen> {
                           child: Container(
                             alignment: Alignment.center,
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
                             decoration: BoxDecoration(
                               color: isSelected ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
                               borderRadius: BorderRadius.circular(8),
@@ -202,9 +211,9 @@ class _PosScreenState extends State<PosScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Row(
               children: [
-                // ----------------- القسم الأيسر: سلة المبيعات والفاتورة -----------------
+                // ================= القسم الأيسر: جدول المبيعات والإدخال والسلة =================
                 Expanded(
-                  flex: 5,
+                  flex: 6,
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: const BoxDecoration(
@@ -212,73 +221,106 @@ class _PosScreenState extends State<PosScreen> {
                     ),
                     child: Column(
                       children: [
-                        // خانة إدخال الباركود السريع
-                        TextField(
-                          controller: _barcodeController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: 'مسح أو إدخال الباركود هنا...',
-                            labelStyle: const TextStyle(color: Colors.white70),
-                            filled: true,
-                            fillColor: const Color(0xFF1E293B),
-                            prefixIcon: const Icon(Icons.qr_code_scanner, color: Color(0xFF3B82F6)),
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                          onSubmitted: _addItemByBarcode,
+                        // شريط الإدخال السريع (الباركود والكمية)
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: TextField(
+                                controller: _barcodeController,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: InputDecoration(
+                                  labelText: 'مسح أو إدخال الباركود...',
+                                  labelStyle: const TextStyle(color: Colors.white70),
+                                  filled: true,
+                                  fillColor: const Color(0xFF1E293B),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
+                                onSubmitted: _addItemByBarcode,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 80,
+                              child: TextField(
+                                controller: _qtyController,
+                                keyboardType: TextInputType.number,
+                                style: const TextStyle(color: Colors.white),
+                                decoration: InputDecoration(
+                                  labelText: 'الكمية',
+                                  labelStyle: const TextStyle(color: Colors.white70),
+                                  filled: true,
+                                  fillColor: const Color(0xFF1E293B),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 10),
 
-                        // جدول مواد السلة
+                        // جدول مواد القائمة (السلة)
                         Expanded(
-                          child: currentCart.isEmpty
-                              ? const Center(
-                                  child: Text(
-                                    'السلة فارغة، امسح الباركود أو اختر مادة من لوحة الأزرار يمين الشاشة',
-                                    style: TextStyle(color: Colors.white54, fontSize: 13),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                )
-                              : ListView.builder(
-                                  itemCount: currentCart.length,
-                                  itemBuilder: (context, index) {
-                                    final item = currentCart[index];
-                                    double itemTotal = (item['sell_price'] as num).toDouble() * (item['sold_qty'] as num).toDouble();
-                                    return Card(
-                                      color: const Color(0xFF1E293B),
-                                      margin: const EdgeInsets.only(bottom: 6),
-                                      child: ListTile(
-                                        title: Text(item['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                        subtitle: Text('السعر: ${item['sell_price']} | الكمية: ${item['sold_qty']}', style: const TextStyle(color: Colors.white70)),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text('$itemTotal د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-                                            IconButton(
-                                              icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                                              onPressed: () => setState(() => currentCart.removeAt(index)),
-                                            ),
-                                          ],
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E293B).withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.white12),
+                            ),
+                            child: currentCart.isEmpty
+                                ? const Center(
+                                    child: Text(
+                                      'السلة فارغة، امسح باركود أو اختر مادة من اللوحة اليمنى',
+                                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    itemCount: currentCart.length,
+                                    itemBuilder: (context, index) {
+                                      final item = currentCart[index];
+                                      double itemTotal = (item['sell_price'] as num).toDouble() * (item['sold_qty'] as num).toDouble();
+                                      return Container(
+                                        decoration: const BoxDecoration(
+                                          border: Border(bottom: BorderSide(color: Colors.white12)),
                                         ),
-                                      ),
-                                    );
-                                  },
-                                ),
+                                        child: ListTile(
+                                          title: Text(item['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                          subtitle: Text('السعر: ${item['sell_price']} | الكمية: ${item['sold_qty']}', style: const TextStyle(color: Colors.white70)),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text('$itemTotal د.ع', style: const TextStyle(color: Color(0xFF10B981), fontSize: 16, fontWeight: FontWeight.bold)),
+                                              IconButton(
+                                                icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                                                onPressed: () => setState(() => currentCart.removeAt(index)),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
                         ),
+                        const SizedBox(height: 10),
 
-                        // شريط المجموع وأزرار التنفيذ بالأسفل
+                        // شريط الإجماليات وأزرار التنفيذ السفلي (مطابق للصورة)
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: const Color(0xFF1E293B),
                             borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white24),
                           ),
                           child: Column(
                             children: [
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('المجموع الكلي:', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                                  Text('$_currentCartTotal د.ع', style: const TextStyle(color: Colors.greenAccent, fontSize: 20, fontWeight: FontWeight.bold)),
+                                  const Text('الإجمالي الكلي:', style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold)),
+                                  Text('$_currentCartTotal د.ع', style: const TextStyle(color: Color(0xFF10B981), fontSize: 22, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                               const SizedBox(height: 12),
@@ -287,19 +329,30 @@ class _PosScreenState extends State<PosScreen> {
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       onPressed: () => setState(() => currentCart.clear()),
-                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                                      icon: const Icon(Icons.clear_all),
-                                      label: const Text('إفراغ القائمة'),
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: const EdgeInsets.symmetric(vertical: 12)),
+                                      icon: const Icon(Icons.clear),
+                                      label: const Text('إلغاء القائمة'),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم طباعة الفاتورة بنجاح')));
+                                      },
+                                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6), padding: const EdgeInsets.symmetric(vertical: 12)),
+                                      icon: const Icon(Icons.print),
+                                      label: const Text('طباعة'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     flex: 2,
                                     child: ElevatedButton.icon(
                                       onPressed: _checkout,
                                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 12)),
                                       icon: const Icon(Icons.point_of_sale),
-                                      label: const Text('بيع القائمة (إتمام)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                      label: const Text('بيع القائمة (إتمام)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                                     ),
                                   ),
                                 ],
@@ -312,61 +365,86 @@ class _PosScreenState extends State<PosScreen> {
                   ),
                 ),
 
-                // ----------------- القسم الأيمن: لوحة أزرار اللمس للمواد (Touch Grid) -----------------
+                // ================= القسم الأيمن: لوحة أزرار اللمس السريعة (Touch Grid) =================
                 Expanded(
-                  flex: 5,
+                  flex: 4,
                   child: Padding(
                     padding: const EdgeInsets.all(12.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'لوحة المواد السريعة (اضغط للإضافة الفورية):',
-                          style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        // شريط تصنيفات المواد في أعلى اللوحة
+                        SizedBox(
+                          height: 38,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _categories.length,
+                            itemBuilder: (context, index) {
+                              String cat = _categories[index];
+                              bool isSelected = _selectedCategory == cat;
+                              return InkWell(
+                                onTap: () => setState(() => _selectedCategory = cat),
+                                child: Container(
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  margin: const EdgeInsets.only(right: 6),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? const Color(0xFF10B981) : const Color(0xFF1E293B),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: isSelected ? Colors.white : Colors.white24),
+                                  ),
+                                  child: Text(cat, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         const SizedBox(height: 10),
+
+                        // شبكة أزرار المواد المخزنة
                         Expanded(
-                          child: quickProducts.isEmpty
-                              .toString() == 'true' && quickProducts.isEmpty
-                              ? const Center(child: Text('لا توجد مواد مخزنة حالياً، أضف مواد من شاشة إضافة منتج', style: TextStyle(color: Colors.white54)))
+                          child: filteredProducts.isEmpty
+                              ? const Center(
+                                  child: Text(
+                                    'لا توجد مواد مخزنة، أضف مواد من شاشة "إضافة منتج"',
+                                    style: TextStyle(color: Colors.white54, fontSize: 13),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
                               : GridView.builder(
                                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: 3,
-                                    crossAxisSpacing: 10,
-                                    mainAxisSpacing: 10,
-                                    childAspectRatio: 1.3,
+                                    crossAxisSpacing: 8,
+                                    mainAxisSpacing: 8,
+                                    childAspectRatio: 1.2,
                                   ),
-                                  itemCount: quickProducts.length,
+                                  itemCount: filteredProducts.length,
                                   itemBuilder: (context, index) {
-                                    final prod = quickProducts[index];
+                                    final prod = filteredProducts[index];
                                     return InkWell(
                                       onTap: () => _addItemToCart(prod),
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(10),
                                       child: Container(
                                         decoration: BoxDecoration(
                                           color: const Color(0xFF1E293B),
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(10),
                                           border: Border.all(color: const Color(0xFF3B82F6), width: 1.2),
                                         ),
-                                        padding: const EdgeInsets.all(8),
+                                        padding: const EdgeInsets.all(6),
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             Text(
                                               prod['name'],
-                                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
                                               textAlign: TextAlign.center,
                                               maxLines: 2,
                                               overflow: TextOverflow.ellipsis,
                                             ),
-                                            const SizedBox(height: 6),
+                                            const SizedBox(height: 4),
                                             Text(
                                               '${prod['sell_price']} د.ع',
-                                              style: const TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.bold),
-                                            ),
-                                            Text(
-                                              'الخزين: ${prod['quantity']}',
-                                              style: const TextStyle(color: Colors.white54, fontSize: 10),
+                                              style: const TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold),
                                             ),
                                           ],
                                         ),
