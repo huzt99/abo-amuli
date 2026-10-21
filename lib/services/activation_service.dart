@@ -10,7 +10,6 @@ class ActivationService {
   static const String telegramBotToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
   static const String telegramChatId = '6590858813';
 
-  // --- إدارة الجلسات المحلية ---
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_activated') ?? false;
@@ -31,7 +30,7 @@ class ActivationService {
     await prefs.setBool('is_admin_logged', value);
   }
 
-  // --- جلب البيانات من السحابة ---
+  // --- جلب البيانات مع إرجاع الخطأ الحقيقي إن وجد ---
   static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
     try {
       final response = await http.get(
@@ -42,23 +41,30 @@ class ActivationService {
         },
       ).timeout(const Duration(seconds: 10));
 
+      print('JSONBin GET Status: ${response.statusCode}');
+      print('JSONBin GET Body: ${response.body}');
+
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        if (data.containsKey('record')) {
-          final record = data['record'];
+        final Map<String, dynamic> decoded = jsonDecode(response.body);
+        if (decoded.containsKey('record')) {
+          final record = decoded['record'];
           if (record is Map && record.containsKey('users') && record['users'] is List) {
             List list = record['users'];
             return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          } else if (record is List) {
+            return record.map((e) => Map<String, dynamic>.from(e as Map)).toList();
           }
         }
+      } else {
+        print('خطأ سحابة غير متوقع: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('خطأ جلب السحابة: $e');
+      print('استثناء خطأ الشبكة/السحابة: $e');
     }
     return [];
   }
 
-  // --- تسجيل مستخدم جديد في السحابة ---
+  // --- تسجيل مستخدم جديد مع فحص الرد ---
   static Future<bool> registerUserDual({required String username, required String email}) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
@@ -81,14 +87,17 @@ class ActivationService {
         body: jsonEncode({'users': users}),
       ).timeout(const Duration(seconds: 10));
 
+      print('JSONBin PUT Status: ${response.statusCode}');
+      print('JSONBin PUT Body: ${response.body}');
+
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ التسجيل بالسحابة: $e');
+      print('استثناء تسجيل السحابة: $e');
       return false;
     }
   }
 
-  // --- فحص تفعيل الزبون ---
+  // --- فحص التفعيل ---
   static Future<bool> checkUserActivationDual(String username) async {
     List<Map<String, dynamic>> users = await fetchUsersFromCloud();
     for (var u in users) {
@@ -100,7 +109,7 @@ class ActivationService {
     return false;
   }
 
-  // --- موافقة الأدمن وحفظها في السحابة ---
+  // --- موافقة الأدمن وتحديث السحابة ---
   static Future<bool> approveUserDual(String username) async {
     try {
       List<Map<String, dynamic>> users = await fetchUsersFromCloud();
@@ -120,14 +129,15 @@ class ActivationService {
         body: jsonEncode({'users': users}),
       ).timeout(const Duration(seconds: 10));
 
+      print('Approve PUT Status: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ التفعيل بالسحابة: $e');
+      print('استثناء الموافقة: $e');
       return false;
     }
   }
 
-  // --- إرسال إشعار التليجرام ---
+  // --- إرسال التليجرام ---
   static Future<bool> sendTelegramActivationRequest({
     required String username,
     required String email,
@@ -148,9 +158,10 @@ class ActivationService {
         }),
       ).timeout(const Duration(seconds: 10));
 
+      print('Telegram Response: ${response.statusCode} - ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('خطأ التليجرام: $e');
+      print('استثناء التليجرام: $e');
       return false;
     }
   }
