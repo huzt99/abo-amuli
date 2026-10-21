@@ -30,8 +30,8 @@ class ActivationService {
     await prefs.setBool('is_admin_logged', value);
   }
 
-  // --- جلب البيانات مع إرجاع الخطأ الحقيقي إن وجد ---
-  static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
+  // دالة لجلب البيانات وإرجاع النص الخام لفحصه على الشاشة
+  static Future<Map<String, dynamic>> fetchCloudDebugResult() async {
     try {
       final response = await http.get(
         Uri.parse('https://api.jsonbin.io/v3/b/$binId/latest'),
@@ -41,33 +41,36 @@ class ActivationService {
         },
       ).timeout(const Duration(seconds: 10));
 
-      print('JSONBin GET Status: ${response.statusCode}');
-      print('JSONBin GET Body: ${response.body}');
-
       if (response.statusCode == 200) {
         final Map<String, dynamic> decoded = jsonDecode(response.body);
+        List<Map<String, dynamic>> usersList = [];
+
         if (decoded.containsKey('record')) {
           final record = decoded['record'];
           if (record is Map && record.containsKey('users') && record['users'] is List) {
-            List list = record['users'];
-            return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            usersList = List<Map<String, dynamic>>.from(record['users'].map((e) => Map<String, dynamic>.from(e)));
           } else if (record is List) {
-            return record.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+            usersList = List<Map<String, dynamic>>.from(record.map((e) => Map<String, dynamic>.from(e)));
           }
         }
+        return {'success': true, 'users': usersList, 'raw': response.body};
       } else {
-        print('خطأ سحابة غير متوقع: ${response.statusCode} - ${response.body}');
+        return {'success': false, 'users': [], 'raw': 'Error Code: ${response.statusCode} - ${response.body}'};
       }
     } catch (e) {
-      print('استثناء خطأ الشبكة/السحابة: $e');
+      return {'success': false, 'users': [], 'raw': 'Exception: $e'};
     }
-    return [];
   }
 
-  // --- تسجيل مستخدم جديد مع فحص الرد ---
+  static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
+    final res = await fetchCloudDebugResult();
+    return res['users'] as List<Map<String, dynamic>>;
+  }
+
   static Future<bool> registerUserDual({required String username, required String email}) async {
     try {
-      List<Map<String, dynamic>> users = await fetchUsersFromCloud();
+      final cloudRes = await fetchCloudDebugResult();
+      List<Map<String, dynamic>> users = cloudRes['users'];
       
       users.removeWhere((u) => u['username'] == username);
       users.add({
@@ -87,17 +90,12 @@ class ActivationService {
         body: jsonEncode({'users': users}),
       ).timeout(const Duration(seconds: 10));
 
-      print('JSONBin PUT Status: ${response.statusCode}');
-      print('JSONBin PUT Body: ${response.body}');
-
       return response.statusCode == 200;
     } catch (e) {
-      print('استثناء تسجيل السحابة: $e');
       return false;
     }
   }
 
-  // --- فحص التفعيل ---
   static Future<bool> checkUserActivationDual(String username) async {
     List<Map<String, dynamic>> users = await fetchUsersFromCloud();
     for (var u in users) {
@@ -109,10 +107,10 @@ class ActivationService {
     return false;
   }
 
-  // --- موافقة الأدمن وتحديث السحابة ---
   static Future<bool> approveUserDual(String username) async {
     try {
-      List<Map<String, dynamic>> users = await fetchUsersFromCloud();
+      final cloudRes = await fetchCloudDebugResult();
+      List<Map<String, dynamic>> users = cloudRes['users'];
       for (var u in users) {
         if (u['username'] == username) {
           u['status'] = 'تم التفعيل ✅';
@@ -129,15 +127,12 @@ class ActivationService {
         body: jsonEncode({'users': users}),
       ).timeout(const Duration(seconds: 10));
 
-      print('Approve PUT Status: ${response.statusCode}');
       return response.statusCode == 200;
     } catch (e) {
-      print('استثناء الموافقة: $e');
       return false;
     }
   }
 
-  // --- إرسال التليجرام ---
   static Future<bool> sendTelegramActivationRequest({
     required String username,
     required String email,
@@ -158,10 +153,8 @@ class ActivationService {
         }),
       ).timeout(const Duration(seconds: 10));
 
-      print('Telegram Response: ${response.statusCode} - ${response.body}');
       return response.statusCode == 200;
     } catch (e) {
-      print('استثناء التليجرام: $e');
       return false;
     }
   }
