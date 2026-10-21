@@ -45,23 +45,57 @@ class DatabaseHelper {
     ''');
   }
 
-  // 1. إرجاع كل المنتجات
+  // 1. إضافة مادة جديدة (تستخدمها شاشة add_product_screen)
+  Future<int> insertProduct(Map<String, dynamic> product) async {
+    final db = await instance.database;
+    String barcode = (product['barcode'] != null && product['barcode'].toString().isNotEmpty)
+        ? product['barcode']
+        : 'NO_BC_${DateTime.now().millisecondsSinceEpoch}';
+
+    Map<String, dynamic> row = Map.from(product);
+    row['barcode'] = barcode;
+
+    return await db.insert('products', row, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  // 2. إرجاع جميع المنتجات
   Future<List<Map<String, dynamic>>> getAllProducts() async {
     final db = await instance.database;
     return await db.query('products');
   }
 
-  // 2. إرجاع كل المبيعات (التي طلبها سيرفر البناء)
+  // 3. حذف مادة (تستخدمها شاشة product_list_screen)
+  Future<int> deleteProduct(int id) async {
+    final db = await instance.database;
+    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // 4. إتمام عملية بيع وحفظ الفاتورة (تستخدمها شاشة pos_screen)
+  Future<int> completeSale(List<dynamic> cartItems, double totalAmount) async {
+    final db = await instance.database;
+    return await db.insert('sales', {
+      'total_amount': totalAmount,
+      'date': DateTime.now().toIso8601String(),
+    });
+  }
+
+  // 5. جلب كافة المبيعات والفواتير (تستخدمها شاشة sales_report_screen)
+  Future<List<Map<String, dynamic>>> getAllInvoices() async {
+    final db = await instance.database;
+    return await db.query('sales', orderBy: 'id DESC');
+  }
+
+  // 6. جلب المبيعات للسحابة
   Future<List<Map<String, dynamic>>> getAllSales() async {
     final db = await instance.database;
     return await db.query('sales');
   }
 
-  // 3. إضافة أو تحديث منتج من السحابة
+  // 7. دمج وتحديث المادة من السحابة
   Future<int> insertOrUpdateProduct(Map<String, dynamic> product) async {
     final db = await instance.database;
     String barcode = product['barcode'] ?? 'NO_BC_${DateTime.now().millisecondsSinceEpoch}';
-    
+
     List<Map<String, dynamic>> existing = await db.query(
       'products',
       where: 'barcode = ?',
@@ -89,14 +123,5 @@ class DatabaseHelper {
         'quantity': product['quantity'],
       });
     }
-  }
-
-  // 4. إضافة مبيعات
-  Future<int> insertSale(double total) async {
-    final db = await instance.database;
-    return await db.insert('sales', {
-      'total_amount': total,
-      'date': DateTime.now().toIso8601String(),
-    });
   }
 }
