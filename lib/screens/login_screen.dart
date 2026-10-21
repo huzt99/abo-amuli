@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
     String name = _fullNameController.text.trim();
     String phone = _phoneController.text.trim();
 
-    // 1. التحقق إذا كان المسجل هو الأدمن الماستر (أنت يا أبو مؤمل)
+    // 1. الدخول الخاص بك كأدمن ماستر (أبو مؤمل)
     if (username == ActivationService.adminUsername && code == ActivationService.adminPassword) {
       setState(() => _isLoading = false);
       Navigator.pushReplacement(
@@ -56,9 +56,9 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // 2. التحقق من كود التفعيل الموحد للزبائن
+    // 2. طلب تفعيل الزبائن برمز التفعيل الموحد
     if (code == '20319920') {
-      // إرسال الإشعار للتلغرام الخاص بك
+      // إرسال الإشعار للتلكرام
       bool sent = await ActivationService.sendTelegramActivationRequest(
         fullName: name,
         email: email,
@@ -70,37 +70,32 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      // إظهار تنبيه للزبون وتحويله للواتساب
+      // إظهار تنبيه للزبون وعدم السماح له بالدخول نهائياً حتى توافق عليه
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           backgroundColor: const Color(0xFF1E293B),
-          title: const Text('✅ تم إرسال طلب التفعيل', style: TextStyle(color: Colors.white)),
+          title: const Text('⏳ الطلب قيد الانتظار', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
           content: Text(
             sent
-                ? 'تم إرسال طلب التفعيل إلى المطور بنجاح.\nيرجى التواصل عبر الواتساب لإكمال تفعيل الحساب.'
-                : 'حدث خطأ في الاتصال، يرجى التواصل مباشر مع المطور لتفعيل حسابك.',
+                ? 'تم إرسال طلب التفعيل إلى المطور بنجاح.\n\nحسابك حالياً قيد التنشيط، يرجى التواصل عبر الواتساب لإكمال تفعيل الحساب والدخول.'
+                : 'تم تسجيل الطلب، يرجى التواصل مباشرة مع المطور لتفعيل حسابك.',
             style: const TextStyle(color: Colors.white70),
           ),
           actions: [
-            TextButton(
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
               onPressed: () {
                 Navigator.pop(context);
                 _openWhatsApp();
               },
-              child: const Text('التواصل عبر واتساب 💬', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold)),
+              icon: const Icon(Icons.chat, color: Colors.white),
+              label: const Text('مراسلة المطور على واتساب', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                // الدخول ككاشير بانتظار الموافقة أو توجيهه للرئيسية
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const DashboardScreen(role: 'cashier')),
-                );
-              },
-              child: const Text('متابعة كنسخة تجريبية', style: TextStyle(color: Colors.grey)),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إغلاق', style: TextStyle(color: Colors.grey)),
             ),
           ],
         ),
@@ -124,7 +119,7 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Container(
-            maxWidth: 450,
+            constraints: const BoxConstraints(maxWidth: 450),
             padding: const EdgeInsets.all(28.0),
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B),
@@ -176,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
                           : const Text(
-                              'تفعيل وتسجيل الدخول',
+                              'إرسال طلب التفعيل',
                               style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                     ),
