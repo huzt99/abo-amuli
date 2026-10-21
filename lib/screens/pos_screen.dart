@@ -36,9 +36,11 @@ class _PosScreenState extends State<PosScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: GridView.builder(
-          gridCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
           itemCount: _customerLists.length,
           itemBuilder: (context, index) {
             final listName = _customerLists[index];
