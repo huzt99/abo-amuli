@@ -1,7 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.pos_system">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- صلاحية الاتصال بالإنترنت وفحص حالة الشبكة -->
+    <!-- صلاحيات الإنترنت والشبكة -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
@@ -15,6 +14,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -22,7 +22,7 @@
             
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
-              android:value="@style/ValueTheme"
+              android:resource="@style/NormalTheme"
               />
             
             <intent-filter>
