@@ -13,42 +13,37 @@ class ActivationScreen extends StatefulWidget {
 class _ActivationScreenState extends State<ActivationScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _loginController = TextEditingController(); // إيميل أو يوزر
+  final TextEditingController _passController = TextEditingController();  // الرمز
+  final TextEditingController _codeController = TextEditingController();  // كود التفعيل
 
+  bool _isAccountCreated = false; // لمتابعة التنقل للخزانة الثانية (كود التفعيل)
   bool _isLoading = false;
 
+  // فتح رابط الواتساب الشغال
   Future<void> _openWhatsApp() async {
-    final Uri whatsappUrl = Uri.parse('https://wa.me/9647862597668?text=${Uri.encodeComponent('السلام عليكم، قمت بإرسال طلب تفعيل للبرنامج، اسم المستخدم: ${_usernameController.text}')}');
-    if (await canLaunchUrl(whatsappUrl)) {
-      await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+    final Uri url = Uri.parse('https://wa.me/9647862597668?text=${Uri.encodeComponent('السلام عليكم، قمت بتسجيل حساب باسم: ${_loginController.text} وأريد كود التفعيل.')}');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح الواتساب')));
     }
   }
 
+  // فتح رابط التليجرام الشغال
   Future<void> _openTelegram() async {
-    final Uri telegramUrl = Uri.parse('https://t.me/huzt92');
-    if (await canLaunchUrl(telegramUrl)) {
-      await launchUrl(telegramUrl, mode: LaunchMode.externalApplication);
+    final Uri url = Uri.parse('https://t.me/huzt92');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تعذر فتح التليجرام')));
     }
   }
 
-  void _submitActivation() async {
+  void _handleAction() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    String loginInput = _loginController.text.trim();
+    String passInput = _passController.text.trim();
 
-    String name = _nameController.text.trim();
-    String email = _emailController.text.trim();
-    String username = _usernameController.text.trim();
-    String phone = _phoneController.text.trim();
-    String code = _codeController.text.trim();
-
-    // 1. دخول حساب الأدمن الماستر الخاص بك
-    if (email == 'huzt.m1@gmail.com' && (code == '20819921992' || code == '20319920')) {
-      setState(() => _isLoading = false);
+    // 1. الدخول الخاص بك كأدمن ماستر (أبو مؤمل)
+    if (loginInput == 'huzt.m1@gmail.com' && passInput == '20819921992') {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AdminApprovalScreen()),
@@ -56,19 +51,32 @@ class _ActivationScreenState extends State<ActivationScreen> {
       return;
     }
 
-    // 2. كود التفعيل الموحد للزبائن
-    if (code == '20319920') {
+    // 2. إذا لم يكن قد انتقل لخانة التفعيل بعد
+    if (!_isAccountCreated) {
+      setState(() {
+        _isAccountCreated = true;
+      });
+      return;
+    }
+
+    // 3. معالجة إدخال كود التفعيل للزبون
+    String activationCode = _codeController.text.trim();
+    if (activationCode == '20319920') {
+      setState(() => _isLoading = true);
+
+      // إرسال الإشعار لتليجرام الأدمن
       await ActivationService.sendTelegramActivationRequest(
-        fullName: name,
-        email: email,
-        username: username,
-        phone: phone,
+        fullName: 'زبون جديد',
+        email: loginInput.contains('@') ? loginInput : 'لا يوجد',
+        username: loginInput,
+        phone: 'عبر التطبيق',
       );
 
       setState(() => _isLoading = false);
 
       if (!mounted) return;
 
+      // إظهار تنبيه الانتظار وقفل الحساب
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -79,42 +87,24 @@ class _ActivationScreenState extends State<ActivationScreen> {
             children: [
               Icon(Icons.hourglass_top, color: Colors.amber),
               SizedBox(width: 8),
-              Text('الطلب قيد المراجعة', style: TextStyle(color: Colors.white, fontSize: 18)),
+              Text('طلب التفعيل', style: TextStyle(color: Colors.white, fontSize: 18)),
             ],
           ),
           content: const Text(
-            'تم إرسال طلب التفعيل بنجاح!\n\nيرجى الانتظار ومراسلة المطور عبر الواتساب أو التليجرام لإتمام الدفع وتأكيد تفعيل الحساب.',
+            'رجاءً انتظر موافقة المطور!\n\nتم إرسال طلبك وسيتم مراجعة الدفع وتفعيل حسابك فوراً.',
             style: TextStyle(color: Colors.white70, height: 1.4),
           ),
           actions: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                  onPressed: _openWhatsApp,
-                  icon: const Icon(Icons.chat, color: Colors.white),
-                  label: const Text('مراسلة عبر واتساب (+9647862597668)', style: TextStyle(color: Colors.white)),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
-                  onPressed: _openTelegram,
-                  icon: const Icon(Icons.send, color: Colors.white),
-                  label: const Text('مراسلة عبر تليجرام (@huzt92)', style: TextStyle(color: Colors.white)),
-                ),
-              ],
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('حسناً', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       );
     } else {
-      setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('❌ رمز التفعيل غير صحيح!'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('❌ كود التفعيل غير صحيح!'), backgroundColor: Colors.red),
       );
     }
   }
@@ -127,98 +117,73 @@ class _ActivationScreenState extends State<ActivationScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 400),
             padding: const EdgeInsets.all(24.0),
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B),
               borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
             ),
             child: Form(
               key: _formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF38BDF8).withOpacity(0.1),
-                      shape: BoxShape.circle,
+                  const Icon(Icons.shield_outlined, size: 50, color: Color(0xFF38BDF8)),
+                  const SizedBox(height: 12),
+                  Text(
+                    _isAccountCreated ? 'تفعيل الحساب' : 'تسجيل حساب جديد',
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // الخانة الأولى: إيميل أو يوزر نيم + رمز
+                  if (!_isAccountCreated) ...[
+                    _buildField(_loginController, 'البريد الإلكتروني أو اسم المستخدم', Icons.person),
+                    const SizedBox(height: 12),
+                    _buildField(_passController, 'كلمة المرور', Icons.lock, isPassword: true),
+                  ],
+
+                  // الخانة الثانية: كود التفعيل مع أزرار التواصل الشغالة
+                  if (_isAccountCreated) ...[
+                    _buildField(_codeController, 'أدخل كود التفعيل', Icons.vpn_key, isPassword: true),
+                    const SizedBox(height: 16),
+                    const Text('للحصول على كود التفعيل، يرجى التواصل مع المطور:', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                            onPressed: _openWhatsApp,
+                            icon: const Icon(Icons.chat, color: Colors.white, size: 18),
+                            label: const Text('واتساب', style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
+                            onPressed: _openTelegram,
+                            icon: const Icon(Icons.send, color: Colors.white, size: 18),
+                            label: const Text('تليجرام', style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.security, size: 48, color: Color(0xFF38BDF8)),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'تفعيل نظام المبيعات والمخازن',
-                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'يرجى إدخال بياناتك ورمز التفعيل المعتمد',
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  _buildField(_nameController, 'الاسم الكامل', Icons.person),
-                  const SizedBox(height: 12),
-                  _buildField(_emailController, 'البريد الإلكتروني', Icons.email),
-                  const SizedBox(height: 12),
-                  _buildField(_usernameController, 'اسم المستخدم', Icons.account_circle),
-                  const SizedBox(height: 12),
-                  _buildField(_phoneController, 'رقم الهاتف', Icons.phone),
-                  const SizedBox(height: 12),
-                  _buildField(_codeController, 'رمز التفعيل', Icons.vpn_key, isPassword: true),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF25D366),
-                            side: const BorderSide(color: Color(0xFF25D366)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          onPressed: _openWhatsApp,
-                          icon: const Icon(Icons.chat, size: 18),
-                          label: const Text('واتساب', style: TextStyle(fontSize: 12)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF38BDF8),
-                            side: const BorderSide(color: Color(0xFF38BDF8)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                          onPressed: _openTelegram,
-                          icon: const Icon(Icons.send, size: 18),
-                          label: const Text('تليجرام', style: TextStyle(fontSize: 12)),
-                        ),
-                      ),
-                    ],
-                  ),
+                  ],
+
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0284C7),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      onPressed: _isLoading ? null : _submitActivation,
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0284C7)),
+                      onPressed: _isLoading ? null : _handleAction,
                       child: _isLoading
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              'إرسال طلب التفعيل والموافقة',
-                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                          : Text(
+                              _isAccountCreated ? 'تفعيل الحساب' : 'التالي / تسجيل',
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                             ),
                     ),
                   ),
@@ -239,15 +204,11 @@ class _ActivationScreenState extends State<ActivationScreen> {
       validator: (v) => v == null || v.trim().isEmpty ? 'مطلوب' : null,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.white60, fontSize: 13),
+        labelStyle: const TextStyle(color: Colors.white60, fontSize: 12),
         prefixIcon: Icon(icon, color: const Color(0xFF38BDF8), size: 20),
         filled: true,
         fillColor: const Color(0xFF0F172A),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFF38BDF8)),
-        ),
       ),
     );
   }
