@@ -8,7 +8,6 @@ class AdminApprovalScreen extends StatefulWidget {
 }
 
 class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
-  // قائمة الطلبات المعلقة (تجريبية لحين ربطها بقاعدة البيانات المحلية أو السحابة)
   List<Map<String, String>> pendingUsers = [
     {
       'name': 'محل زبون جديد',
@@ -87,7 +86,8 @@ class _AdminApprovalScreenState extends State<AdminApprovalScreen> {
                               child: ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF10B981),
-                                  padding: const EdgeInsets.vertical: 12),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
                                 icon: const Icon(Icons.check_circle_outline, color: Colors.white),
                                 label: const Text('تفعيل الحساب الآن', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 onPressed: () => _approveUser(index),
