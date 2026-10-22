@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/activation_service.dart';
 import 'activation_screen.dart';
+import 'pos_screen.dart';
 
 class MainDashboardScreen extends StatelessWidget {
   const MainDashboardScreen({super.key});
@@ -71,7 +72,12 @@ class MainDashboardScreen extends StatelessWidget {
                     title: 'نقطة البيع (POS)',
                     icon: Icons.shopping_cart,
                     color: const Color(0xFF0284C7),
-                    onTap: () => _showMsg(context, 'تم فتح شاشة المبيعات'),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PosScreen()),
+                      );
+                    },
                   ),
                   _buildDashboardCard(
                     title: 'إدارة المخزن',
