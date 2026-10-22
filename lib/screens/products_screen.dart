@@ -1,48 +1,94 @@
 import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 
-class ProductListScreen extends StatefulWidget {
-  const ProductListScreen({super.key});
+class ProductsScreen extends StatefulWidget {
+  const ProductsScreen({super.key});
 
   @override
-  State<ProductListScreen> createState() => _ProductListScreenState();
+  State<ProductsScreen> createState() => _ProductsScreenState();
 }
 
-class _ProductListScreenState extends State<ProductListScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  List<Map<String, dynamic>> _barcodeProducts = [];
-  List<Map<String, dynamic>> _noBarcodeProducts = [];
-  bool _isLoading = true;
+class _ProductsScreenState extends State<ProductsScreen> {
+  List<Map<String, dynamic>> _products = [];
+  final _nameController = TextEditingController();
+  final _priceController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _loadProducts();
   }
 
-  void _loadProducts() async {
-    try {
-      final products = await DatabaseHelper.instance.getAllProducts();
-      if (mounted) {
-        setState(() {
-          _barcodeProducts = products.where((p) => !p['barcode'].toString().startsWith('NO_BC_')).toList();
-          _noBarcodeProducts = products.where((p) => p['barcode'].toString().startsWith('NO_BC_')).toList();
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+  Future<void> _loadProducts() async {
+    final data = await DatabaseHelper.instance.getProducts();
+    setState(() {
+      _products = data;
+    });
+  }
+
+  void _addNewProduct() async {
+    String name = _nameController.text.trim();
+    double? price = double.tryParse(_priceController.text.trim());
+
+    if (name.isEmpty || price == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى إدخال اسم المنتج والسعر بشكل صحيح')),
+      );
+      return;
     }
+
+    await DatabaseHelper.instance.insertProduct({
+      'name': name,
+      'price': price,
+      'category': 'عام',
+    });
+
+    _nameController.clear();
+    _priceController.clear();
+    Navigator.pop(context);
+    _loadProducts();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم إضافة المنتج بنجاح')),
+    );
   }
 
-  void _deleteProduct(int id) async {
-    await DatabaseHelper.instance.deleteProduct(id);
-    _loadProducts();
+  void _showAddProductDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('إضافة صنف / منتج جديد', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'اسم المنتج', labelStyle: TextStyle(color: Colors.white60)),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _priceController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'السعر (د.ع)', labelStyle: TextStyle(color: Colors.white60)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: _addNewProduct,
+            child: const Text('حفظ', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -50,85 +96,35 @@ class _ProductListScreenState extends State<ProductListScreen> with SingleTicker
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('إدارة المخزن وعرض المواد'),
+        title: const Text('إدارة المنتجات والأصناف', style: TextStyle(color: Colors.white, fontSize: 16)),
         backgroundColor: const Color(0xFF1E293B),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFF3B82F6),
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          tabs: const [
-            Tab(text: 'المواد بباركود'),
-            Tab(text: 'المواد بدون باركود'),
-          ],
-        ),
+        centerTitle: true,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6)))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildProductList(_barcodeProducts),
-                _buildProductList(_noBarcodeProducts),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildProductList(List<Map<String, dynamic>> products) {
-    if (products.isEmpty) {
-      return const Center(
-        child: Text(
-          'لا توجد مواد مخزنة في هذا القسم حالياً',
-          style: TextStyle(color: Colors.white54, fontSize: 16),
-        ),
-      );
-    }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
-        double qty = (product['quantity'] as num?)?.toDouble() ?? 0.0;
-        bool isLowStock = qty <= 5.0;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isLowStock ? Colors.redAccent : Colors.white12,
-              width: isLowStock ? 2 : 1,
-            ),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(16),
-            title: Text(
-              product['name'] ?? 'بدون اسم',
-              style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 6),
-                Text('الباركود: ${product['barcode']}', style: const TextStyle(color: Colors.white54, fontSize: 12)),
-                Text('الكمية المتوفرة: $qty', style: const TextStyle(color: Colors.white70)),
-                Text('سعر البيع: ${product['sell_price']} د.ع', style: const TextStyle(color: Color(0xFF10B981))),
-                if (isLowStock)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 4.0),
-                    child: Text('⚠️ تنبيه: الكمية على وشك النفاد!', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+      body: _products.isEmpty
+          ? const Center(child: Text('لا توجد منتجات مضافة حالياً', style: TextStyle(color: Colors.white60)))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _products.length,
+              itemBuilder: (context, index) {
+                var p = _products[index];
+                return Card(
+                  color: const Color(0xFF1E293B),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  child: ListTile(
+                    leading: const Icon(Icons.category, color: Color(0xFFF59E0B)),
+                    title: Text(p['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    subtitle: Text('الفئة: ${p['category']}', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                    trailing: Text('${p['price']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                   ),
-              ],
+                );
+              },
             ),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.redAccent),
-              onPressed: () => _deleteProduct(product['id']),
-            ),
-          ),
-        );
-      },
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFFF59E0B),
+        onPressed: _showAddProductDialog,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
     );
   }
 }
