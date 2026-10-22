@@ -1,8 +1,12 @@
-import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ActivationService {
+  // التوكن والشات آيدي الخاص بك يا أبو مؤمل
+  static const String _botToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
+  static const String _chatId = '6590858813';
+
   static const String _keyActivated = 'is_activated';
   static const String _keyAdminLoggedIn = 'is_admin_logged_in';
 
@@ -30,12 +34,32 @@ class ActivationService {
     await prefs.setBool(_keyAdminLoggedIn, value);
   }
 
-  // إرسال طلب تفعيل جديد
+  // إرسال طلب تفعيل جديد إلى تليجرام الخاص بك
   static Future<bool> sendActivationRequest(String name, String phone, String password) async {
     try {
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
+      final message = '🔔 *طلب تفعيل تطبيق جديد*\n\n'
+          '👤 اسم المحل: $name\n'
+          '📱 رقم الهاتف: $phone\n'
+          '🔑 كلمة المرور/الرمز: $password\n'
+          '⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}\n\n'
+          '⚡ يرجى مراجعة الطلب ومنح كود التفعيل لصاحب المحل!';
+
+      final url = Uri.parse('https://api.telegram.org/bot$_botToken/sendMessage');
+      final response = await http.post(
+        url,
+        body: {
+          'chat_id': _chatId,
+          'text': message,
+          'parse_mode': 'Markdown',
+        },
+      );
+
+      debugPrint('Telegram Response Status: ${response.statusCode}');
+      debugPrint('Telegram Response Body: ${response.body}');
+
+      return response.statusCode == 200;
     } catch (e) {
+      debugPrint('Telegram Exception: $e');
       return false;
     }
   }
@@ -43,7 +67,6 @@ class ActivationService {
   // التحقق من كود التفعيل
   static Future<bool> verifyCode(String phone, String code) async {
     try {
-      await Future.delayed(const Duration(seconds: 1));
       if (code.isNotEmpty) {
         await setLocalActivated(true);
         return true;
@@ -57,7 +80,6 @@ class ActivationService {
   // تسجيل الدخول
   static Future<String> login(String username, String password) async {
     try {
-      await Future.delayed(const Duration(seconds: 1));
       if (username == 'admin' && password == 'admin123') {
         await setAdminLoggedIn(true);
         return 'admin';
@@ -68,38 +90,6 @@ class ActivationService {
       return 'error';
     } catch (e) {
       return 'error';
-    }
-  }
-
-  // إعادة تعيين كلمة المرور
-  static Future<bool> resetPassword(String phone, String newPassword) async {
-    try {
-      await Future.delayed(const Duration(seconds: 1));
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // جلب الطلبات المعلقة (للوحة التحكم)
-  static Future<List<Map<String, dynamic>>> getPendingRequests() async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return [
-        {'name': 'مستخدم تجريبي', 'phone': '07800000000', 'date': '2026-10-22'}
-      ];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  // الموافقة على المستخدم وتوليد الكود
-  static Future<String?> approveUserAndGenerateCode(String phone) async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      return '123456';
-    } catch (e) {
-      return null;
     }
   }
 }
