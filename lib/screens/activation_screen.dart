@@ -14,9 +14,10 @@ class ActivationScreen extends StatefulWidget {
 class _ActivationScreenState extends State<ActivationScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // حقول طلب التفعيل
+  // حقول إرسال طلب التفعيل
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController(); // خانة الرمز للحساب
   final _activationCodeController = TextEditingController();
 
   // حقول تسجيل الدخول
@@ -24,7 +25,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
   final _loginPasswordController = TextEditingController();
 
   bool _isLoading = false;
-  bool _showCodeInput = false; // لإظهار خانة الكود بعد الإرسال
+  bool _showCodeInput = false;
 
   @override
   void initState() {
@@ -53,19 +54,20 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     }
   }
 
-  // 1️⃣ إرسال الطلب وإظهار خانة كود التفعيل
+  // إرسال الطلب مع كلمة المرور
   void _handleSendRequest() async {
     setState(() => _isLoading = true);
     String name = _nameController.text.trim();
     String phone = _phoneController.text.trim();
+    String password = _passwordController.text.trim();
 
-    if (name.isEmpty || phone.isEmpty) {
-      _showMsg('يرجى كتابة الاسم ورقم الهاتف');
+    if (name.isEmpty || phone.isEmpty || password.isEmpty) {
+      _showMsg('يرجى ملء كافة الحقول المتاحة (الاسم، الهاتف، وكلمة المرور)');
       setState(() => _isLoading = false);
       return;
     }
 
-    bool sent = await ActivationService.sendActivationRequest(name, phone);
+    bool sent = await ActivationService.sendActivationRequest(name, phone, password);
     setState(() => _isLoading = false);
 
     if (sent) {
@@ -76,14 +78,13 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     }
   }
 
-  // 2️⃣ التفعيل باستخدام الكود المكون من 11 رقم
   void _handleVerifyCode() async {
     setState(() => _isLoading = true);
     String phone = _phoneController.text.trim();
     String code = _activationCodeController.text.trim();
 
     if (code.length != 11) {
-      _showMsg('كود التفعيل يجب أن يتكون من 11 رقم');
+      _showMsg('كود التفعيل يجب أن يتكون من 11 رقم بالضبط');
       setState(() => _isLoading = false);
       return;
     }
@@ -100,19 +101,18 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     }
   }
 
-  // 3️⃣ تسجيل الدخول العادي (الاسم/الهاتف والرقم السري)
   void _handleLogin() async {
     setState(() => _isLoading = true);
     String username = _loginUsernameController.text.trim();
     String password = _loginPasswordController.text.trim();
 
     if (username.isEmpty || password.isEmpty) {
-      _showMsg('يرجى ملء جميع الحقول');
+      _showMsg('يرجى ملء اسم المستخدم وكلمة المرور');
       setState(() => _isLoading = false);
       return;
     }
 
-    String result = await ActivationService.loginOrCheckApproval(username, password);
+    String result = await ActivationService.login(username, password);
     setState(() => _isLoading = false);
 
     if (result == 'ADMIN') {
@@ -126,6 +126,65 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     } else {
       _showMsg('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
     }
+  }
+
+  // نافذة "نسيت كلمة المرور"
+  void _showForgotPasswordDialog() {
+    final phoneCtrl = TextEditingController();
+    final newPassCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('إعادة تعيين كلمة المرور', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: phoneCtrl,
+              keyboardType: TextInputType.phone,
+              style: const TextStyle(color: Colors.white),
+              decoration: _inputDecoration('رقم الهاتف المسجل', Icons.phone),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newPassCtrl,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: _inputDecoration('الرمز السري الجديد', Icons.lock_reset),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: () async {
+              String phone = phoneCtrl.text.trim();
+              String newPass = newPassCtrl.text.trim();
+              if (phone.isEmpty || newPass.isEmpty) {
+                _showMsg('يرجى إدخال الهاتف والرمز الجديد');
+                return;
+              }
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+              bool ok = await ActivationService.resetPassword(phone, newPass);
+              setState(() => _isLoading = false);
+              if (ok) {
+                _showMsg('تم تغيير كلمة المرور بنجاح، يمكنك تسجيل الدخول الآن');
+              } else {
+                _showMsg('لم يتم العثور على حساب مرتبط برقم الهاتف هذا');
+              }
+            },
+            child: const Text('حفظ الرمز الجديد', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showMsg(String msg) {
@@ -155,13 +214,13 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
       body: TabBarView(
         controller: _tabController,
         children: [
-          // تبويب إرسال طلب التفعيل
+          // 1️⃣ إرسال طلب التفعيل
           SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('أدخل بياناتك وسيصل إشعار فوري للمطور للحصول على كود التفعيل', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text('أدخل بياناتك ورمز حسابك للحصول على كود التفعيل', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 20),
                 TextField(
                   controller: _nameController,
@@ -174,6 +233,13 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                   keyboardType: TextInputType.phone,
                   style: const TextStyle(color: Colors.white),
                   decoration: _inputDecoration('رقم الهاتف / واتساب', Icons.phone),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _passwordController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDecoration('رمز الحساب / كلمة المرور', Icons.lock),
                 ),
                 const SizedBox(height: 20),
                 if (!_showCodeInput)
@@ -189,7 +255,6 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                         : const Text('إرسال طلب التفعيل', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
 
-                // خانة كود التفعيل (تظهر بعد الضغط على الإرسال)
                 if (_showCodeInput) ...[
                   const SizedBox(height: 12),
                   TextField(
@@ -215,14 +280,12 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                 const SizedBox(height: 24),
                 const Divider(color: Colors.white24),
                 const SizedBox(height: 12),
-                const Text('للتواصل المباشر مع المطور:', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60, fontSize: 12)),
-                const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                        onPressed: () => _launchURL('https://wa.me/9647800000000'), // ضع رقمك هنا بصيغة دولية
+                        onPressed: () => _launchURL('https://wa.me/9647800000000'),
                         icon: const Icon(Icons.chat, color: Colors.white),
                         label: const Text('واتساب', style: TextStyle(color: Colors.white)),
                       ),
@@ -242,18 +305,18 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
             ),
           ),
 
-          // تبويب تسجيل الدخول الجاهز
+          // 2️⃣ تسجيل الدخول مع نسيان كلمة المرور
           SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('تسجيل الدخول باستخدام الحساب الخاص بك', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text('تسجيل الدخول بالحساب المفعل', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 20),
                 TextField(
                   controller: _loginUsernameController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('رقم الهاتف / الاسم / اسم المستخدم', Icons.person),
+                  decoration: _inputDecoration('رقم الهاتف / الاسم', Icons.person),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -262,7 +325,15 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                   style: const TextStyle(color: Colors.white),
                   decoration: _inputDecoration('الرمز السري / كلمة المرور', Icons.lock),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: _showForgotPasswordDialog,
+                    child: const Text('نسيت كلمة المرور؟', style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF10B981),
