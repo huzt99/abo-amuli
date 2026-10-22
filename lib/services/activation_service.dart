@@ -40,10 +40,11 @@ class ActivationService {
   }
 
   // --- 2. إرسال إشعار فوري إلى التلجرام عند طلب التفعيل ---
-  static Future<void> sendTelegramNotification(String identifier, String password) async {
+  static Future<void> sendTelegramNotification(String name, String phone, String password) async {
     try {
       final message = "🔔 *طلب تفعيل جديد - نظام المخازن (POS)*\n\n"
-          "👤 *المعرف (يوزر / إيميل):* $identifier\n"
+          "👤 *الاسم / المحل:* $name\n"
+          "📱 *رقم الهاتف / اليوزر:* `$phone`\n"
           "🔑 *الرمز السري:* $password\n"
           "⏰ *الوقت:* ${DateTime.now().toString().substring(0, 16)}\n\n"
           "يرجى الدخول إلى لوحة تحكم الأدمن للموافقة وتوليد كود التفعيل المكون من 11 رقم.";
@@ -63,8 +64,8 @@ class ActivationService {
     }
   }
 
-  // --- 3. تسجيل حساب جديد (حفظ بالسحاب بأمان تام + إشعار تلجرام) ---
-  static Future<bool> sendActivationRequest(String identifier, String password) async {
+  // --- 3. تسجيل حساب جديد (تقبل 3 معاملات وتخزينها بالسحاب وإرسال إشعار تلجرام) ---
+  static Future<bool> sendActivationRequest(String name, String phone, String password) async {
     try {
       final response = await http.get(
         Uri.parse(baseUrl),
@@ -86,12 +87,13 @@ class ActivationService {
         pendingRequests = List.from(data['pending_requests']);
       }
 
-      // إزالة الطلب القديم لنفس المعرف لمنع التكرار
-      pendingRequests.removeWhere((item) => item['identifier'] == identifier);
+      // إزالة الطلب القديم لنفس الرقم/المعرف لمنع التكرار
+      pendingRequests.removeWhere((item) => item['phone'] == phone || item['identifier'] == phone);
 
       // إضافة الطلب الجديد
       pendingRequests.add({
-        'identifier': identifier,
+        'name': name,
+        'phone': phone,
         'password': password,
         'date': DateTime.now().toIso8601String(),
       });
@@ -110,7 +112,7 @@ class ActivationService {
       );
 
       if (putResponse.statusCode == 200 || putResponse.statusCode == 201) {
-        await sendTelegramNotification(identifier, password);
+        await sendTelegramNotification(name, phone, password);
         return true;
       }
       return false;
@@ -121,7 +123,7 @@ class ActivationService {
   }
 
   // --- 4. الموافقة وتوليد كود من 11 رقم عشوائي فريد ---
-  static Future<String?> approveUserAndGenerateCode(String identifier) async {
+  static Future<String?> approveUserAndGenerateCode(String phone) async {
     try {
       Random random = Random();
       String generatedCode = "";
@@ -145,14 +147,14 @@ class ActivationService {
       }
 
       data['approved_users'] ??= {};
-      data['approved_users'][identifier] = {
+      data['approved_users'][phone] = {
         'code': generatedCode,
         'approved_at': DateTime.now().toIso8601String(),
       };
 
       if (data['pending_requests'] is List) {
         List requests = List.from(data['pending_requests']);
-        requests.removeWhere((item) => item['identifier'] == identifier);
+        requests.removeWhere((item) => item['phone'] == phone || item['identifier'] == phone);
         data['pending_requests'] = requests;
       }
 
@@ -173,7 +175,7 @@ class ActivationService {
   }
 
   // --- 5. التحقق من كود الـ 11 رقم وتفعيل الجهاز محلياً ---
-  static Future<bool> verifyCode(String identifier, String code) async {
+  static Future<bool> verifyCode(String phone, String code) async {
     try {
       final response = await http.get(
         Uri.parse(baseUrl),
@@ -186,8 +188,8 @@ class ActivationService {
           var data = decoded['record'];
           if (data is Map && data['approved_users'] != null) {
             var approvedUsers = data['approved_users'];
-            if (approvedUsers is Map && approvedUsers[identifier] != null) {
-              var userRecord = approvedUsers[identifier];
+            if (approvedUsers is Map && approvedUsers[phone] != null) {
+              var userRecord = approvedUsers[phone];
               if (userRecord['code'] == code.trim()) {
                 await setLocalActivated(true);
                 return true;
@@ -205,7 +207,6 @@ class ActivationService {
 
   // --- 6. تسجيل الدخول (مع حساب الأدمن الخاص بك) ---
   static Future<String> login(String username, String password) async {
-    // حساب الأدمن الخاص بك
     if (username.trim() == "Huzt1998" && password == "Hz19881988") {
       await setAdminLoggedIn(true);
       return "admin";
