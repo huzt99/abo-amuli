@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- صلاحيات الإنترنت الضرورية لعمل التليجرام والطلبات -->
+    <!-- صلاحيات الاتصال بالإنترنت وحالة الشبكة لإرسال طلبات التفعيل للتليجرام -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
@@ -21,6 +21,7 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- إعدادات إطار عمل فلاتر -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2"/>
