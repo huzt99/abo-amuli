@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,103 +33,35 @@ class ActivationService {
     await prefs.setBool(_kAdminLoggedIn, value);
   }
 
-  // توليد رمز تفعيل مكون من 11 رقم عشوائي
-  static String generate11DigitCode() {
-    Random random = Random();
-    String code = '';
-    for (int i = 0; i < 11; i++) {
-      code += random.nextInt(10).toString();
-    }
-    return code;
-  }
-
   // إرسال طلب تفعيل جديد
   static Future<bool> sendActivationRequest(String name, String phone) async {
-    await _sendTelegramNotification('🚨 *طلب تفعيل جديد للنظام*\n👤 الاسم: $name\n📞 الهاتف: $phone\n\nيرجى فتح لوحة الأدمن للموافقة وتوليد كود التفعيل.');
+    await _sendTelegramNotification('🚨 *طلب تفعيل جديد للنظام*\n👤 الاسم: $name\n📞 الهاتف: $phone\n\nيرجى التفعيل من لوحة المشرف.');
     return await _savePendingUserToCloud(name, phone);
   }
 
+  // التأكد من صحة كود التفعيل (11 رقم)
+  static Future<bool> verifyCode(String phone, String code) async {
+    bool isValid = await _verifyUserActivationCode(phone.trim(), code.trim());
+    if (isValid) {
+      await setLocalActivated(true);
+      return true;
+    }
+    return false;
+  }
+
   // فحص تسجيل الدخول
-  static Future<String> loginOrCheckApproval(String identifier, String codeOrPassword) async {
-    // حساب الأدمن الجديد
-    if (identifier.trim() == 'Huzt1988' && codeOrPassword.trim() == 'Hz19881988') {
+  static Future<String> loginOrCheckApproval(String username, String password) async {
+    if (username.trim() == 'Huzt1988' && password.trim() == 'Hz19881988') {
       await setAdminLoggedIn(true);
       return 'ADMIN';
     }
 
-    // فحص كود التفعيل المكون من 11 رقم للعميل
-    bool isCodeValid = await _verifyUserActivationCode(identifier.trim(), codeOrPassword.trim());
-    if (isCodeValid) {
-      await setLocalActivated(true);
+    bool isActivated = await isLocalActivated();
+    if (isActivated) {
       return 'APPROVED';
     }
 
     return 'INVALID';
-  }
-
-  // جلب كافة طلبات التفعيل للأدمن
-  static Future<List<Map<String, dynamic>>> getPendingRequests() async {
-    try {
-      final url = Uri.parse('https://api.jsonbin.io/v3/b/$_binId');
-      final response = await http.get(
-        url,
-        headers: {'X-Master-Key': _masterKey, 'X-Access-Key': _accessKey},
-      );
-
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        List requests = body['record']['requests'] ?? [];
-        return List<Map<String, dynamic>>.from(requests);
-      }
-    } catch (_) {}
-    return [];
-  }
-
-  // موافقة الأدمن على الطلب وتوليد كود من 11 رقم
-  static Future<String?> approveUserAndGenerateCode(String phone) async {
-    try {
-      final url = Uri.parse('https://api.jsonbin.io/v3/b/$_binId');
-      final response = await http.get(
-        url,
-        headers: {'X-Master-Key': _masterKey, 'X-Access-Key': _accessKey},
-      );
-
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        Map<String, dynamic> record = Map<String, dynamic>.from(body['record'] ?? {});
-        List requests = List.from(record['requests'] ?? []);
-
-        String generatedCode = generate11DigitCode();
-        bool found = false;
-
-        for (var req in requests) {
-          if (req['phone'] == phone) {
-            req['status'] = 'approved';
-            req['activation_code'] = generatedCode;
-            found = true;
-            break;
-          }
-        }
-
-        if (found) {
-          record['requests'] = requests;
-          await http.put(
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Master-Key': _masterKey,
-              'X-Access-Key': _accessKey,
-            },
-            body: jsonEncode(record),
-          );
-
-          // إرسال كود التفعيل على التليجرام للأدمن كإشعار
-          await _sendTelegramNotification('✅ *تمت الموافقة وتوليد كود التفعيل*\n📞 رقم العميل: $phone\n🔑 كود التفعيل (11 رقم): `$generatedCode`');
-          return generatedCode;
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   static Future<void> _sendTelegramNotification(String message) async {
@@ -163,8 +94,6 @@ class ActivationService {
       }
 
       List requests = List.from(record['requests'] ?? []);
-      
-      // تجنب التكرار بنفس الرقم
       requests.removeWhere((item) => item['phone'] == phone);
 
       requests.add({
@@ -212,5 +141,68 @@ class ActivationService {
       }
     } catch (_) {}
     return false;
+  }
+
+  static Future<List<Map<String, dynamic>>> getPendingRequests() async {
+    try {
+      final url = Uri.parse('https://api.jsonbin.io/v3/b/$_binId');
+      final response = await http.get(
+        url,
+        headers: {'X-Master-Key': _masterKey, 'X-Access-Key': _accessKey},
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        List requests = body['record']['requests'] ?? [];
+        return List<Map<String, dynamic>>.from(requests);
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<String?> approveUserAndGenerateCode(String phone) async {
+    try {
+      final url = Uri.parse('https://api.jsonbin.io/v3/b/$_binId');
+      final response = await http.get(
+        url,
+        headers: {'X-Master-Key': _masterKey, 'X-Access-Key': _accessKey},
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        Map<String, dynamic> record = Map<String, dynamic>.from(body['record'] ?? {});
+        List requests = List.from(record['requests'] ?? []);
+
+        // توليد كود من 11 رقم
+        String generatedCode = (10000000000 + (DateTime.now().millisecondsSinceEpoch % 90000000000)).toString();
+        bool found = false;
+
+        for (var req in requests) {
+          if (req['phone'] == phone) {
+            req['status'] = 'approved';
+            req['activation_code'] = generatedCode;
+            found = true;
+            break;
+          }
+        }
+
+        if (found) {
+          record['requests'] = requests;
+          await http.put(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Master-Key': _masterKey,
+              'X-Access-Key': _accessKey,
+            },
+            body: jsonEncode(record),
+          );
+
+          await _sendTelegramNotification('✅ *تمت الموافقة وتوليد كود التفعيل*\n📞 رقم العميل: $phone\n🔑 كود التفعيل (11 رقم): `$generatedCode`');
+          return generatedCode;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 }
