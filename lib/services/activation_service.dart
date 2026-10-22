@@ -4,20 +4,17 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ActivationService {
-  // المفتاح والـ Bin الخاصين بك ببرنامج المخازن
   static const String binId = "6ada49aaac6210605a49b2cb";
   static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
   static const String baseUrl = "https://api.jsonbin.io/v3/b/$binId";
 
-  // بيانات بوت التلجرام للإشعارات
   static const String telegramBotToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I";
   static const String telegramChatId = "6590858813";
 
-  // روابط التواصل الخاصة بك
   static const String whatsappLink = "https://wa.me/9647862597668";
   static const String telegramLink = "https://t.me/huzt92";
 
-  // --- 1. فحص وحفظ التفعيل محلياً وفي السحاب ---
+  // --- 1. إدارة التفعيل المحلي والمؤقت ---
   
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
@@ -27,6 +24,22 @@ class ActivationService {
   static Future<void> setLocalActivated(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_pos_activated', value);
+  }
+
+  // حفظ وقت بدء التماثل المؤقت (3 دقائق)
+  static Future<void> startTempActivation() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('temp_activation_time', DateTime.now().millisecondsSinceEpoch);
+  }
+
+  // فحص هل ما زال التفعيل المؤقت شاملاً (خلال 3 دقائق)
+  static Future<bool> isTempActivationValid() async {
+    final prefs = await SharedPreferences.getInstance();
+    int? startTime = prefs.getInt('temp_activation_time');
+    if (startTime == null) return false;
+
+    int diff = DateTime.now().millisecondsSinceEpoch - startTime;
+    return diff <= (3 * 60 * 1000); // 3 دقائق
   }
 
   static Future<bool> isAdminLoggedIn() async {
@@ -39,15 +52,15 @@ class ActivationService {
     await prefs.setBool('is_admin_logged', value);
   }
 
-  // --- 2. إرسال إشعار فوري إلى التلجرام عند طلب التفعيل ---
-  static Future<void> sendTelegramNotification(String name, String phone, String password) async {
+  // --- 2. إرسال إشعار التلجرام ---
+  static Future<void> sendTelegramNotification(String username, String phone, String password) async {
     try {
-      final message = "🔔 *طلب تفعيل جديد - نظام المخازن (POS)*\n\n"
-          "👤 *الاسم / المحل:* $name\n"
-          "📱 *رقم الهاتف / اليوزر:* `$phone`\n"
-          "🔑 *الرمز السري:* $password\n"
+      final message = "🔔 *طلب تسجيل وتفعيل جديد - نظام المخازن (POS)*\n\n"
+          "👤 *اليوزر / الإيميل:* `$username`\n"
+          "📱 *رقم الهاتف:* `$phone`\n"
+          "🔑 *الرمز السري:* `$password`\n"
           "⏰ *الوقت:* ${DateTime.now().toString().substring(0, 16)}\n\n"
-          "يرجى الدخول إلى لوحة تحكم الأدمن للموافقة وتوليد كود التفعيل المكون من 11 رقم.";
+          "يرجى الدخول لوحة الأدمن لتأكيد الموافقة على التفعيل النهائي.";
 
       final url = "https://api.telegram.org/bot$telegramBotToken/sendMessage";
       await http.post(
@@ -64,13 +77,12 @@ class ActivationService {
     }
   }
 
-  // --- 3. تسجيل حساب جديد (مع ضمان الانتقال لشاشة إدخال الكود) ---
-  static Future<bool> sendActivationRequest(String name, String phone, String password) async {
+  // --- 3. التسجيل بالبرنامج (بدء المؤقت 3 دقائق + إرسال بالسحاب والتلجرام) ---
+  static Future<bool> registerUser(String username, String phone, String password) async {
     try {
-      // إرسال إشعار التلجرام أولاً
-      await sendTelegramNotification(name, phone, password);
+      await startTempActivation(); // بدء تجربة الـ 3 دقائق فوراً
+      await sendTelegramNotification(username, phone, password);
 
-      // محاولة تحديث السحاب
       final response = await http.get(
         Uri.parse(baseUrl),
         headers: {"X-Master-Key": masterKey},
@@ -91,10 +103,10 @@ class ActivationService {
         pendingRequests = List.from(data['pending_requests']);
       }
 
-      pendingRequests.removeWhere((item) => item['phone'] == phone || item['identifier'] == phone);
+      pendingRequests.removeWhere((item) => item['username'] == username || item['phone'] == phone);
 
       pendingRequests.add({
-        'name': name,
+        'username': username,
         'phone': phone,
         'password': password,
         'date': DateTime.now().toIso8601String(),
@@ -102,7 +114,6 @@ class ActivationService {
 
       data['pending_requests'] = pendingRequests;
       data['approved_users'] ??= {};
-      data['users'] ??= {};
 
       await http.put(
         Uri.parse(baseUrl),
@@ -115,20 +126,14 @@ class ActivationService {
 
       return true;
     } catch (e) {
-      print("Error sending request: $e");
-      return true; // نرجع true حتى ينتقل المستخدم لشاشة إدخال الكود ولا يعلق برسالة الخطأ
+      print("Register Error: $e");
+      return true;
     }
   }
 
-  // --- 4. الموافقة وتوليد كود من 11 رقم عشوائي فريد ---
-  static Future<String?> approveUserAndGenerateCode(String phone) async {
+  // --- 4. موافقة الأدمن على التفعيل ---
+  static Future<bool> approveUser(String username) async {
     try {
-      Random random = Random();
-      String generatedCode = "";
-      for (int i = 0; i < 11; i++) {
-        generatedCode += random.nextInt(10).toString();
-      }
-
       final response = await http.get(
         Uri.parse(baseUrl),
         headers: {"X-Master-Key": masterKey},
@@ -136,23 +141,21 @@ class ActivationService {
 
       Map<String, dynamic> data = {};
       if (response.statusCode == 200) {
-        try {
-          var decoded = jsonDecode(response.body);
-          if (decoded != null && decoded['record'] != null) {
-            data = Map<String, dynamic>.from(decoded['record']);
-          }
-        } catch (_) {}
+        var decoded = jsonDecode(response.body);
+        if (decoded != null && decoded['record'] != null) {
+          data = Map<String, dynamic>.from(decoded['record']);
+        }
       }
 
       data['approved_users'] ??= {};
-      data['approved_users'][phone] = {
-        'code': generatedCode,
+      data['approved_users'][username.trim()] = {
         'approved_at': DateTime.now().toIso8601String(),
+        'status': 'active'
       };
 
       if (data['pending_requests'] is List) {
         List requests = List.from(data['pending_requests']);
-        requests.removeWhere((item) => item['phone'] == phone || item['identifier'] == item['name']);
+        requests.removeWhere((item) => item['username'] == username);
         data['pending_requests'] = requests;
       }
 
@@ -165,67 +168,20 @@ class ActivationService {
         body: jsonEncode(data),
       );
 
-      return generatedCode;
+      return true;
     } catch (e) {
-      print("Error in approveUserAndGenerateCode: $e");
-      return null;
+      return false;
     }
   }
 
-  // --- 5. التحقق من كود الـ 11 رقم وتفعيل الجهاز محلياً ---
-  static Future<bool> verifyCode(String phone, String code) async {
+  // --- 5. فحص التفعيل السحابي عند الضغط على "تفعيل الحساب" أو عند تسجيل الدخول ---
+  static Future<bool> checkApprovalStatus(String username) async {
     try {
       final response = await http.get(
         Uri.parse(baseUrl),
         headers: {"X-Master-Key": masterKey},
       );
 
-      if (response.statusCode == 200) {
-        var decoded = jsonDecode(response.body);
-        if (decoded != null && decoded['record'] != null) {
-          var data = decoded['record'];
-          if (data is Map && data['approved_users'] != null) {
-            var approvedUsers = data['approved_users'];
-            if (approvedUsers is Map) {
-              // البحث برقم الهاتف أو المعرف
-              for (var key in approvedUsers.keys) {
-                var userRecord = approvedUsers[key];
-                if (userRecord != null && userRecord['code'].toString().trim() == code.trim()) {
-                  await setLocalActivated(true);
-                  return true;
-                }
-              }
-            }
-          }
-        }
-      }
-      return false;
-    } catch (e) {
-      print("Error in verifyCode: $e");
-      return false;
-    }
-  }
-
-  // --- 6. تسجيل الدخول (مع دعم حساب الأدمن والفحص السحابي) ---
-  static Future<String> login(String username, String password) async {
-    // حساب الأدمن الخاص بك
-    if (username.trim() == "Huzt1998" && password == "Hz19881988") {
-      await setAdminLoggedIn(true);
-      return "admin";
-    }
-
-    // التحقق المحلي
-    bool activated = await isLocalActivated();
-    if (activated) {
-      return "success";
-    }
-
-    // التحقق السحابي التلقائي إذا كان المستخدم معتمداً مسبقاً
-    try {
-      final response = await http.get(
-        Uri.parse(baseUrl),
-        headers: {"X-Master-Key": masterKey},
-      );
       if (response.statusCode == 200) {
         var decoded = jsonDecode(response.body);
         if (decoded != null && decoded['record'] != null) {
@@ -233,18 +189,34 @@ class ActivationService {
           if (data is Map && data['approved_users'] != null) {
             var approved = data['approved_users'];
             if (approved is Map && approved[username.trim()] != null) {
-              await setLocalActivated(true);
-              return "success";
+              await setLocalActivated(true); // حفظ التفعيل الدائم
+              return true;
             }
           }
         }
       }
-    } catch (_) {}
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // --- 6. تسجيل الدخول من خانة "تسجيل الدخول" ---
+  static Future<String> login(String username, String password) async {
+    if (username.trim() == "Huzt1998" && password == "Hz19881988") {
+      await setAdminLoggedIn(true);
+      return "admin";
+    }
+
+    // فحص إذا كان التفعيل محلياً أو سحابياً تم قبوله
+    bool isApproved = await checkApprovalStatus(username);
+    if (isApproved || await isLocalActivated()) {
+      return "success";
+    }
 
     return "failed";
   }
 
-  // --- 7. جلب الطلبات المعلقة للأدمن ---
   static Future<List<Map<String, dynamic>>> getPendingRequests() async {
     try {
       final response = await http.get(
@@ -266,9 +238,5 @@ class ActivationService {
     } catch (e) {
       return [];
     }
-  }
-
-  static Future<bool> resetPassword(String phone, String newPass) async {
-    return true;
   }
 }
