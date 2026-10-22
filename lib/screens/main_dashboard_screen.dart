@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/activation_service.dart';
 import 'activation_screen.dart';
 import 'pos_screen.dart';
+import 'products_screen.dart';
+import 'inventory_screen.dart';
+import 'reports_screen.dart';
 
 class MainDashboardScreen extends StatelessWidget {
   const MainDashboardScreen({super.key});
@@ -51,9 +54,9 @@ class MainDashboardScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('أهلاً بك', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('أهلاً بك يا أبو مؤمل', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       SizedBox(height: 4),
-                      Text('النسخة مفعلة وجاهزة للعمل بكفاءة', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                      Text('النسخة مفعلة وجاهزة للعمل بكفاءة عالية', style: TextStyle(color: Colors.white60, fontSize: 12)),
                     ],
                   ),
                 ],
@@ -73,29 +76,32 @@ class MainDashboardScreen extends StatelessWidget {
                     icon: Icons.shopping_cart,
                     color: const Color(0xFF0284C7),
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const PosScreen()),
-                      );
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
                     },
                   ),
                   _buildDashboardCard(
                     title: 'إدارة المخزن',
                     icon: Icons.inventory_2,
                     color: const Color(0xFF10B981),
-                    onTap: () => _showMsg(context, 'تم فتح إدارة المخازن'),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const InventoryScreen()));
+                    },
                   ),
                   _buildDashboardCard(
                     title: 'المنتجات والأصناف',
                     icon: Icons.category,
                     color: const Color(0xFFF59E0B),
-                    onTap: () => _showMsg(context, 'تم فتح قائمة المنتجات'),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductsScreen()));
+                    },
                   ),
                   _buildDashboardCard(
                     title: 'التقارير والأرباح',
                     icon: Icons.bar_chart,
                     color: const Color(0xFF8B5CF6),
-                    onTap: () => _showMsg(context, 'تم فتح التقارير'),
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const ReportsScreen()));
+                    },
                   ),
                 ],
               ),
@@ -126,9 +132,5 @@ class MainDashboardScreen extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  void _showMsg(BuildContext context, String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 1)));
   }
 }
