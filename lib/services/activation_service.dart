@@ -12,14 +12,11 @@ class ActivationService {
   static const String _botToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
   static const String _chatId = '6590858813';
 
-  // الرمز القياسي
-  static const String _validCode = '20319920';
-
   // المفاتيح المحلية
   static const String _kActivated = 'is_local_activated';
   static const String _kAdminLoggedIn = 'is_admin_logged_in';
+  static const String _kUserPhone = 'user_phone_number';
 
-  // التحقق من التفعيل المحلي
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_kActivated) ?? false;
@@ -30,7 +27,6 @@ class ActivationService {
     await prefs.setBool(_kActivated, value);
   }
 
-  // التحقق من دخول المشرف
   static Future<bool> isAdminLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_kAdminLoggedIn) ?? false;
@@ -41,38 +37,37 @@ class ActivationService {
     await prefs.setBool(_kAdminLoggedIn, value);
   }
 
-  // تسجيل طلب جديد والتفعيل (هذه الدالة المطلوبة)
-  static Future<bool> registerAndActivate(String name, String phone, String code) async {
-    if (code.trim() != _validCode) {
-      return false;
-    }
+  // 1️⃣ إرسال طلب تفعيل جديد بدون تفعيل تلقائي
+  static Future<bool> sendActivationRequest(String name, String phone) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kUserPhone, phone.trim());
 
-    // حفظ التفعيل محلياً
-    await setLocalActivated(true);
+    // إرسال تنبيه للتليجرام فوراً
+    await _sendTelegramNotification('🚨 *طلب تفعيل جديد للنظام*\n👤 الاسم: $name\n📞 الهاتف: $phone\n\nيرجى الدخول بحساب الأدمن للموافقة.');
 
-    // إرسال إشعار تليجرام
-    _sendTelegramNotification('طلب تفعيل جديد:\nالاسم: $name\nالهاتف: $phone');
-
-    // حفظ البيانات سحابياً
-    _saveUserToCloud(name, phone);
-
-    return true;
+    // حفظ الطلب بحالة "معلق" في السحاب
+    return await _savePendingUserToCloud(name, phone);
   }
 
-  // تسجيل الدخول (للعملاء أو المشرف) (هذه الدالة المطلوبة)
-  static Future<bool> login(String email, String password) async {
-    // حساب المشرف الرئيسي
-    if (email.trim() == 'huzt.m1@gmail.com' && password.trim() == '20819921992') {
+  // 2️⃣ تسجيل الدخول وتأكد العميل هل تمت الموافقة عليه أم لا
+  static Future<String> loginOrCheckApproval(String identifier, String password) async {
+    // تسجيل دخول الأدمن
+    if (identifier.trim() == 'huzt.m1@gmail.com' && password.trim() == '20819921992') {
       await setAdminLoggedIn(true);
-      return true;
+      return 'ADMIN';
     }
 
-    // التحقق من التفعيل المحلي
-    bool activated = await isLocalActivated();
-    return activated;
+    // فحص موافقة العميل سحابياً
+    bool isApproved = await _checkUserApprovalStatus(identifier.trim());
+    if (isApproved) {
+      await setLocalActivated(true);
+      return 'APPROVED';
+    }
+
+    return 'PENDING';
   }
 
-  // إرسال إشعار تليجرام
+  // إرسال تنبيه تليجرام
   static Future<void> _sendTelegramNotification(String message) async {
     try {
       final url = Uri.parse('https://api.telegram.org/bot$_botToken/sendMessage');
@@ -82,21 +77,19 @@ class ActivationService {
         body: jsonEncode({
           'chat_id': _chatId,
           'text': message,
+          'parse_mode': 'Markdown',
         }),
       );
     } catch (_) {}
   }
 
-  // حفظ بيانات المستخدم سحابياً
-  static Future<void> _saveUserToCloud(String name, String phone) async {
+  // حفظ بيانات العميل المعلق في JSONBin
+  static Future<bool> _savePendingUserToCloud(String name, String phone) async {
     try {
       final url = Uri.parse('https://api.jsonbin.io/v3/b/$_binId');
       final response = await http.get(
         url,
-        headers: {
-          'X-Master-Key': _masterKey,
-          'X-Access-Key': _accessKey,
-        },
+        headers: {'X-Master-Key': _masterKey, 'X-Access-Key': _accessKey},
       );
 
       Map<String, dynamic> currentData = {};
@@ -105,16 +98,17 @@ class ActivationService {
         currentData = Map<String, dynamic>.from(body['record'] ?? {});
       }
 
-      List users = currentData['users'] ?? [];
-      users.add({
+      List requests = currentData['requests'] ?? [];
+      requests.add({
         'name': name,
         'phone': phone,
+        'status': 'pending', // معلق
         'date': DateTime.now().toIso8601String(),
       });
 
-      currentData['users'] = users;
+      currentData['requests'] = requests;
 
-      await http.put(
+      final updateResponse = await http.put(
         url,
         headers: {
           'Content-Type': 'application/json',
@@ -123,6 +117,32 @@ class ActivationService {
         },
         body: jsonEncode(currentData),
       );
+
+      return updateResponse.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // التحقق هل تمت موافقة الأدمن على العميل
+  static Future<bool> _checkUserApprovalStatus(String phone) async {
+    try {
+      final url = Uri.parse('https://api.jsonbin.io/v3/b/$_binId');
+      final response = await http.get(
+        url,
+        headers: {'X-Master-Key': _masterKey, 'X-Access-Key': _accessKey},
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        List requests = body['record']['requests'] ?? [];
+        for (var req in requests) {
+          if (req['phone'] == phone && req['status'] == 'approved') {
+            return true;
+          }
+        }
+      }
     } catch (_) {}
+    return false;
   }
 }
