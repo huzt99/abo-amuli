@@ -23,6 +23,13 @@ jobs:
         with:
           channel: 'stable'
 
+      - name: Create MainActivity Automatically
+        run: |
+          mkdir -p android/app/src/main/java/com/example/pos_system
+          echo 'package com.example.pos_system;' > android/app/src/main/java/com/example/pos_system/MainActivity.java
+          echo 'import io.flutter.embedding.android.FlutterActivity;' >> android/app/src/main/java/com/example/pos_system/MainActivity.java
+          echo 'public class MainActivity extends FlutterActivity {}' >> android/app/src/main/java/com/example/pos_system/MainActivity.java
+
       - name: Install dependencies
         run: flutter pub get
 
