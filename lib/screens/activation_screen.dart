@@ -13,13 +13,10 @@ class ActivationScreen extends StatefulWidget {
 class _ActivationScreenState extends State<ActivationScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  // حقول التسجيل (عميل جديد)
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _codeController = TextEditingController();
 
-  // حقول تسجيل الدخول
-  final _loginEmailController = TextEditingController();
+  final _loginIdentifierController = TextEditingController();
   final _loginPasswordController = TextEditingController();
 
   bool _isLoading = false;
@@ -47,56 +44,60 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     );
   }
 
-  // التواصل مع المطور عبر واتساب أو تليجرام
   Future<void> _launchURL(String urlString) async {
     final Uri url = Uri.parse(urlString);
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تعذر فتح الرابط')),
-        );
-      }
+      if (mounted) _showMsg('تعذر فتح الرابط');
     }
   }
 
-  // تنفيذ طلب التفعيل
-  void _handleActivation() async {
+  // 1️⃣ إرسال الطلب للتليجرام والسحاب
+  void _handleSendRequest() async {
     setState(() => _isLoading = true);
     String name = _nameController.text.trim();
     String phone = _phoneController.text.trim();
-    String code = _codeController.text.trim();
 
-    if (name.isEmpty || phone.isEmpty || code.isEmpty) {
-      _showMsg('يرجى ملء جميع الحقول');
+    if (name.isEmpty || phone.isEmpty) {
+      _showMsg('يرجى كتابة الاسم ورقم الهاتف');
       setState(() => _isLoading = false);
       return;
     }
 
-    bool success = await ActivationService.registerAndActivate(name, phone, code);
+    bool sent = await ActivationService.sendActivationRequest(name, phone);
     setState(() => _isLoading = false);
 
-    if (success) {
-      _showMsg('تم التفعيل بنجاح! أهلاً بك');
-      _navigateToMainDashboard();
+    if (sent) {
+      _showMsg('تم إرسال طلب التفعيل بنجاح! سيتم تنبيه المطور والتفعيل قريباً');
+      _nameController.clear();
+      _phoneController.clear();
     } else {
-      _showMsg('رمز التفعيل غير صحيح (الرمز الصحيح: 20319920)');
+      _showMsg('فشل إرسال الطلب، تأكد من الاتصال بالإنترنت');
     }
   }
 
-  // تنفيذ تسجيل الدخول
+  // 2️⃣ تسجيل الدخول أو فحص التفعيل
   void _handleLogin() async {
     setState(() => _isLoading = true);
-    String email = _loginEmailController.text.trim();
-    String password = _loginPasswordController.text.trim();
+    String id = _loginIdentifierController.text.trim();
+    String pass = _loginPasswordController.text.trim();
 
-    bool success = await ActivationService.login(email, password);
+    if (id.isEmpty) {
+      _showMsg('يرجى إدخال رقم الهاتف أو بريد الأدمن');
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    String result = await ActivationService.loginOrCheckApproval(id, pass);
     setState(() => _isLoading = false);
 
-    if (success) {
-      _showMsg('تم تسجيل الدخول بنجاح');
+    if (result == 'ADMIN') {
+      _showMsg('تم تسجيل الدخول كـ مشرف عام');
+      _navigateToMainDashboard();
+    } else if (result == 'APPROVED') {
+      _showMsg('حسابك مفعل! أهلاً بك في النظام');
       _navigateToMainDashboard();
     } else {
-      _showMsg('بيانات الدخول غير صحيحة أو الحساب غير مفعل');
+      _showMsg('الحساب لم يتم تفعيله بعد من قبل الأدمن');
     }
   }
 
@@ -110,7 +111,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('تفعيل النظام وتسجيل الدخول', style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: const Text('نظام المبيعات - طلب تفعيل', style: TextStyle(color: Colors.white, fontSize: 16)),
         backgroundColor: const Color(0xFF1E293B),
         centerTitle: true,
         bottom: TabBar(
@@ -119,40 +120,32 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
           labelColor: const Color(0xFF38BDF8),
           unselectedLabelColor: Colors.white60,
           tabs: const [
-            Tab(text: 'طلب تفعيل جديد'),
-            Tab(text: 'تسجيل الدخول'),
+            Tab(text: 'إرسال طلب تفعيل'),
+            Tab(text: 'تسجيل الدخول / الفحص'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          // تبويب التفعيل الجديد
           SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('أدخل معلوماتك للحصول على التفعيل الفوري', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text('أدخل بياناتك وسيصل إشعار فوري للمطور لتفعيل حسابك', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 20),
                 TextField(
                   controller: _nameController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('الاسم الكامل', Icons.person),
+                  decoration: _inputDecoration('الاسم الكامل / اسم المحل', Icons.store),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('رقم الهواتف / واتساب', Icons.phone),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _codeController,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('رمز التفعيل', Icons.vpn_key),
+                  decoration: _inputDecoration('رقم الهاتف / واتساب', Icons.phone),
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
@@ -161,22 +154,22 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  onPressed: _isLoading ? null : _handleActivation,
+                  onPressed: _isLoading ? null : _handleSendRequest,
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('تفعيل النظام', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      : const Text('إرسال طلب التفعيل', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 24),
                 const Divider(color: Colors.white24),
                 const SizedBox(height: 12),
-                const Text('للحصول على رمز التفعيل، تواصل مع المطور مباشرة:', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60, fontSize: 12)),
+                const Text('للتواصل المباشر مع المطور:', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60, fontSize: 12)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                        onPressed: () => _launchURL('https://wa.me/9647800000000'),
+                        onPressed: () => _launchURL('https://wa.me/9647800000000'), // ضع رقمك هنا
                         icon: const Icon(Icons.chat, color: Colors.white),
                         label: const Text('واتساب', style: TextStyle(color: Colors.white)),
                       ),
@@ -196,25 +189,24 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
             ),
           ),
 
-          // تبويب تسجيل الدخول
           SingleChildScrollView(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('تسجيل الدخول للحسابات المفعلة أو حساب المشرف العام', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text('للحسابات المفعلة أو دخول المشرف العام', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 20),
                 TextField(
-                  controller: _loginEmailController,
+                  controller: _loginIdentifierController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('البريد الإلكتروني / اسم المستخدم', Icons.email),
+                  decoration: _inputDecoration('رقم الهاتف (للعميل) أو البريد (للأدمن)', Icons.person),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _loginPasswordController,
                   obscureText: true,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('كلمة المرور', Icons.lock),
+                  decoration: _inputDecoration('كلمة المرور (خاصة بالأدمن فقط)', Icons.lock),
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
