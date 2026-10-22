@@ -1,55 +1,19 @@
 import 'package:flutter/material.dart';
+import '../services/activation_service.dart';
+import 'activation_screen.dart';
 import 'pos_screen.dart';
-import 'add_product_screen.dart';
-import 'product_list_screen.dart';
-import 'sales_report_screen.dart';
-import 'accounts_screen.dart';
-import '../services/cloud_service.dart';
 
-class DashboardScreen extends StatelessWidget {
-  final String username;
-  final String role;
+class MainDashboardScreen extends StatelessWidget {
+  const MainDashboardScreen({super.key});
 
-  const DashboardScreen({
-    super.key,
-    this.username = 'المدير',
-    this.role = 'admin',
-  });
+  void _logout(BuildContext context) async {
+    await ActivationService.setLocalActivated(false);
+    await ActivationService.setAdminLoggedIn(false);
 
-  void _navigateToScreen(BuildContext context, String title) {
-    Navigator.push(
+    if (!context.mounted) return;
+    Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (context) => AccountsScreen(title: title),
-      ),
-    );
-  }
-
-  void _handleCloudBackup(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('جاري رفع النسخة الاحتياطية للسحابة...'), duration: Duration(seconds: 1)),
-    );
-    bool success = await CloudService.uploadBackup();
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success ? '✅ تم رفع النسخة الاحتياطية بنجاح!' : '❌ فشل الرفع، تحقق من الإنترنت'),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
-    );
-  }
-
-  void _handleCloudRestore(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('جاري جلب ودمج البيانات من السحابة...'), duration: Duration(seconds: 1)),
-    );
-    bool success = await CloudService.downloadAndRestore();
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success ? '✅ تم دمج واستعادة البيانات بنجاح!' : '❌ فشل السحب من السحابة'),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
+      MaterialPageRoute(builder: (context) => const ActivationScreen()),
     );
   }
 
@@ -58,96 +22,113 @@ class DashboardScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: Text('نظام المبيعات والمخازن (${role == 'admin' ? 'مدير' : 'كاشير'})', style: const TextStyle(fontSize: 16)),
+        title: const Text('نظام المبيعات والمخازن - الرئيسية', style: TextStyle(color: Colors.white, fontSize: 16)),
         backgroundColor: const Color(0xFF1E293B),
-        elevation: 0,
         centerTitle: true,
-        automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
-            onPressed: () => Navigator.pop(context),
-            tooltip: 'خروج',
+            onPressed: () => _logout(context),
+            tooltip: 'تسجيل الخروج',
           ),
         ],
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: GridView.count(
-            crossAxisCount: 3, // تناسق ممتاز للهواتف والتابلت
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 0.95,
-            children: [
-              _buildMenuBtn(context, 'شاشة بيع', Icons.point_of_sale, const Color(0xFF38BDF8), () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const PosScreen()));
-              }),
-              _buildMenuBtn(context, 'قائمة شراء', Icons.receipt_long_outlined, const Color(0xFF818CF8), () => _navigateToScreen(context, 'قائمة شراء')),
-              _buildMenuBtn(context, 'عرض المواد', Icons.inventory_2_outlined, const Color(0xFFFB923C), () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const ProductListScreen()));
-              }),
-              _buildMenuBtn(context, 'إضافة مادة', Icons.add_box_outlined, const Color(0xFFF43F5E), () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductScreen()));
-              }),
-              _buildMenuBtn(context, 'كشف مبيعات', Icons.shopping_cart_checkout, const Color(0xFFE11D48), () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const SalesReportScreen()));
-              }),
-              _buildMenuBtn(context, 'إضافة حساب', Icons.person_add_alt_1_outlined, const Color(0xFFFACC15), () => _navigateToScreen(context, 'إضافة حساب')),
-              _buildMenuBtn(context, 'سند قبض', Icons.receipt_sharp, const Color(0xFF4ADE80), () => _navigateToScreen(context, 'سند قبض')),
-              _buildMenuBtn(context, 'أرصدة الحسابات', Icons.request_quote_outlined, const Color(0xFFF43F5E), () => _navigateToScreen(context, 'أرصدة الحسابات')),
-              _buildMenuBtn(context, 'دمج السحابة', Icons.cloud_sync_outlined, const Color(0xFF34D399), () => _handleCloudRestore(context)),
-              _buildMenuBtn(context, 'كشف حساب', Icons.badge_outlined, const Color(0xFFEC4899), () => _navigateToScreen(context, 'كشف حساب')),
-              _buildMenuBtn(context, 'سند صرف', Icons.receipt_long, const Color(0xFF38BDF8), () => _navigateToScreen(context, 'سند صرف')),
-              _buildMenuBtn(context, 'نسخ السحابة', Icons.cloud_upload_outlined, const Color(0xFFEF4444), () => _handleCloudBackup(context)),
-            ],
-          ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E293B),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.point_of_sale, size: 40, color: Color(0xFF38BDF8)),
+                  SizedBox(width: 16),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('أهلاً بك', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 4),
+                      Text('النسخة مفعلة وجاهزة للعمل بكفاءة', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text('الأقسام الرئيسية', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                children: [
+                  _buildDashboardCard(
+                    title: 'نقطة البيع (POS)',
+                    icon: Icons.shopping_cart,
+                    color: const Color(0xFF0284C7),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PosScreen()),
+                      );
+                    },
+                  ),
+                  _buildDashboardCard(
+                    title: 'إدارة المخزن',
+                    icon: Icons.inventory_2,
+                    color: const Color(0xFF10B981),
+                    onTap: () => _showMsg(context, 'تم فتح إدارة المخازن'),
+                  ),
+                  _buildDashboardCard(
+                    title: 'المنتجات والأصناف',
+                    icon: Icons.category,
+                    color: const Color(0xFFF59E0B),
+                    onTap: () => _showMsg(context, 'تم فتح قائمة المنتجات'),
+                  ),
+                  _buildDashboardCard(
+                    title: 'التقارير والأرباح',
+                    icon: Icons.bar_chart,
+                    color: const Color(0xFF8B5CF6),
+                    onTap: () => _showMsg(context, 'تم فتح التقارير'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildMenuBtn(BuildContext context, String title, IconData icon, Color iconColor, VoidCallback onTap) {
+  Widget _buildDashboardCard({required String title, required IconData icon, required Color color, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFF1E2B45),
+          color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 6,
-              offset: const Offset(0, 3),
-            ),
-          ],
+          border: Border.all(color: color.withOpacity(0.3), width: 1.5),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 28, color: iconColor),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            Icon(icon, size: 48, color: color),
+            const SizedBox(height: 12),
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
     );
+  }
+
+  void _showMsg(BuildContext context, String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 1)));
   }
 }
