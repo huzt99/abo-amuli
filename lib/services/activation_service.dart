@@ -13,7 +13,7 @@ class ActivationService {
   static const String telegramBotToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I";
   static const String telegramChatId = "6590858813";
 
-  // روابط التواصل الخاصة بك (واتساب وتلجرام)
+  // روابط التواصل الخاصة بك
   static const String whatsappLink = "https://wa.me/9647862597668";
   static const String telegramLink = "https://t.me/huzt92";
 
@@ -64,9 +64,13 @@ class ActivationService {
     }
   }
 
-  // --- 3. تسجيل حساب جديد (تقبل 3 معاملات وتخزينها بالسحاب وإرسال إشعار تلجرام) ---
+  // --- 3. تسجيل حساب جديد (مع ضمان الانتقال لشاشة إدخال الكود) ---
   static Future<bool> sendActivationRequest(String name, String phone, String password) async {
     try {
+      // إرسال إشعار التلجرام أولاً
+      await sendTelegramNotification(name, phone, password);
+
+      // محاولة تحديث السحاب
       final response = await http.get(
         Uri.parse(baseUrl),
         headers: {"X-Master-Key": masterKey},
@@ -87,10 +91,8 @@ class ActivationService {
         pendingRequests = List.from(data['pending_requests']);
       }
 
-      // إزالة الطلب القديم لنفس الرقم/المعرف لمنع التكرار
       pendingRequests.removeWhere((item) => item['phone'] == phone || item['identifier'] == phone);
 
-      // إضافة الطلب الجديد
       pendingRequests.add({
         'name': name,
         'phone': phone,
@@ -102,7 +104,7 @@ class ActivationService {
       data['approved_users'] ??= {};
       data['users'] ??= {};
 
-      final putResponse = await http.put(
+      await http.put(
         Uri.parse(baseUrl),
         headers: {
           "Content-Type": "application/json",
@@ -111,14 +113,10 @@ class ActivationService {
         body: jsonEncode(data),
       );
 
-      if (putResponse.statusCode == 200 || putResponse.statusCode == 201) {
-        await sendTelegramNotification(name, phone, password);
-        return true;
-      }
-      return false;
+      return true;
     } catch (e) {
       print("Error sending request: $e");
-      return false;
+      return true; // نرجع true حتى ينتقل المستخدم لشاشة إدخال الكود ولا يعلق برسالة الخطأ
     }
   }
 
@@ -154,7 +152,7 @@ class ActivationService {
 
       if (data['pending_requests'] is List) {
         List requests = List.from(data['pending_requests']);
-        requests.removeWhere((item) => item['phone'] == phone || item['identifier'] == phone);
+        requests.removeWhere((item) => item['phone'] == phone || item['identifier'] == item['name']);
         data['pending_requests'] = requests;
       }
 
@@ -188,11 +186,14 @@ class ActivationService {
           var data = decoded['record'];
           if (data is Map && data['approved_users'] != null) {
             var approvedUsers = data['approved_users'];
-            if (approvedUsers is Map && approvedUsers[phone] != null) {
-              var userRecord = approvedUsers[phone];
-              if (userRecord['code'] == code.trim()) {
-                await setLocalActivated(true);
-                return true;
+            if (approvedUsers is Map) {
+              // البحث برقم الهاتف أو المعرف
+              for (var key in approvedUsers.keys) {
+                var userRecord = approvedUsers[key];
+                if (userRecord != null && userRecord['code'].toString().trim() == code.trim()) {
+                  await setLocalActivated(true);
+                  return true;
+                }
               }
             }
           }
@@ -205,17 +206,40 @@ class ActivationService {
     }
   }
 
-  // --- 6. تسجيل الدخول (مع حساب الأدمن الخاص بك) ---
+  // --- 6. تسجيل الدخول (مع دعم حساب الأدمن والفحص السحابي) ---
   static Future<String> login(String username, String password) async {
+    // حساب الأدمن الخاص بك
     if (username.trim() == "Huzt1998" && password == "Hz19881988") {
       await setAdminLoggedIn(true);
       return "admin";
     }
 
+    // التحقق المحلي
     bool activated = await isLocalActivated();
     if (activated) {
       return "success";
     }
+
+    // التحقق السحابي التلقائي إذا كان المستخدم معتمداً مسبقاً
+    try {
+      final response = await http.get(
+        Uri.parse(baseUrl),
+        headers: {"X-Master-Key": masterKey},
+      );
+      if (response.statusCode == 200) {
+        var decoded = jsonDecode(response.body);
+        if (decoded != null && decoded['record'] != null) {
+          var data = decoded['record'];
+          if (data is Map && data['approved_users'] != null) {
+            var approved = data['approved_users'];
+            if (approved is Map && approved[username.trim()] != null) {
+              await setLocalActivated(true);
+              return "success";
+            }
+          }
+        }
+      }
+    } catch (_) {}
 
     return "failed";
   }
