@@ -16,6 +16,7 @@ jobs:
         with:
           flutter-version: '3.19.6'
           channel: 'stable'
+      - run: flutter create . --platforms=android
       - run: flutter pub get
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
@@ -32,7 +33,7 @@ jobs:
         with:
           flutter-version: '3.19.6'
           channel: 'stable'
-      - run: flutter config --enable-windows-desktop
+      - run: flutter create . --platforms=windows
       - run: flutter pub get
       - run: flutter build windows --release
       - uses: actions/upload-artifact@v4
