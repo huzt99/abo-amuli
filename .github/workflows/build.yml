@@ -1,29 +1,22 @@
-name: Build App (Android & Windows)
+name: Build Applications
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
-  build-android:
+  build-apk:
     name: Build Android APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x'
+          flutter-version: '3.19.6'
           channel: 'stable'
-      - name: Create Android Platform
-        run: flutter create . --platforms=android --project-name=pos_system
       - run: flutter pub get
-      - name: Update minSdk to 21
-        run: |
-          BUILD_GRADLE="android/app/build.gradle"
-          if [ -f "$BUILD_GRADLE" ]; then
-            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/g' $BUILD_GRADLE
-          fi
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
@@ -32,18 +25,14 @@ jobs:
 
   build-windows:
     name: Build Windows EXE
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.x'
+          flutter-version: '3.19.6'
           channel: 'stable'
-      - name: Install Visual Studio 2019 Build Tools
-        run: |
-          choco install visualstudio2019-workload-vctools -y
-      - name: Create Windows Platform
-        run: flutter create . --platforms=windows --project-name=pos_system
+      - run: flutter config --enable-windows-desktop
       - run: flutter pub get
       - run: flutter build windows --release
       - uses: actions/upload-artifact@v4
