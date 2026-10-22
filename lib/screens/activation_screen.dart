@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/activation_service.dart';
 import 'main_dashboard_screen.dart';
+import 'admin_panel_screen.dart';
 
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({super.key});
@@ -16,8 +17,8 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
 
-  final _loginIdentifierController = TextEditingController();
-  final _loginPasswordController = TextEditingController();
+  final _loginPhoneController = TextEditingController();
+  final _loginCodeController = TextEditingController();
 
   bool _isLoading = false;
 
@@ -29,19 +30,16 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
   }
 
   void _checkInitialStatus() async {
-    bool isActivated = await ActivationService.isLocalActivated();
     bool isAdmin = await ActivationService.isAdminLoggedIn();
-    if ((isActivated || isAdmin) && mounted) {
-      _navigateToMainDashboard();
+    if (isAdmin && mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminPanelScreen()));
+      return;
     }
-  }
 
-  void _navigateToMainDashboard() {
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const MainDashboardScreen()),
-    );
+    bool isActivated = await ActivationService.isLocalActivated();
+    if (isActivated && mounted) {
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainDashboardScreen()));
+    }
   }
 
   Future<void> _launchURL(String urlString) async {
@@ -51,7 +49,6 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     }
   }
 
-  // 1️⃣ إرسال الطلب للتليجرام والسحاب
   void _handleSendRequest() async {
     setState(() => _isLoading = true);
     String name = _nameController.text.trim();
@@ -67,7 +64,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     setState(() => _isLoading = false);
 
     if (sent) {
-      _showMsg('تم إرسال طلب التفعيل بنجاح! سيتم تنبيه المطور والتفعيل قريباً');
+      _showMsg('تم إرسال طلب التفعيل! سيصلك رمز التفعيل من المطور');
       _nameController.clear();
       _phoneController.clear();
     } else {
@@ -75,29 +72,30 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     }
   }
 
-  // 2️⃣ تسجيل الدخول أو فحص التفعيل
   void _handleLogin() async {
     setState(() => _isLoading = true);
-    String id = _loginIdentifierController.text.trim();
-    String pass = _loginPasswordController.text.trim();
+    String id = _loginPhoneController.text.trim();
+    String code = _loginCodeController.text.trim();
 
-    if (id.isEmpty) {
-      _showMsg('يرجى إدخال رقم الهاتف أو بريد الأدمن');
+    if (id.isEmpty || code.isEmpty) {
+      _showMsg('يرجى إدخال البيانات كاملة');
       setState(() => _isLoading = false);
       return;
     }
 
-    String result = await ActivationService.loginOrCheckApproval(id, pass);
+    String result = await ActivationService.loginOrCheckApproval(id, code);
     setState(() => _isLoading = false);
 
     if (result == 'ADMIN') {
-      _showMsg('تم تسجيل الدخول كـ مشرف عام');
-      _navigateToMainDashboard();
+      _showMsg('أهلاً بك يا مشرف النظام');
+      if (!mounted) return;
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AdminPanelScreen()));
     } else if (result == 'APPROVED') {
-      _showMsg('حسابك مفعل! أهلاً بك في النظام');
-      _navigateToMainDashboard();
+      _showMsg('تم التفعيل بنجاح! أهلاً بك');
+      if (!mounted) return;
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const MainDashboardScreen()));
     } else {
-      _showMsg('الحساب لم يتم تفعيله بعد من قبل الأدمن');
+      _showMsg('كود التفعيل غير صحيح أو لم تتم الموافقة عليه بعد');
     }
   }
 
@@ -121,7 +119,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
           unselectedLabelColor: Colors.white60,
           tabs: const [
             Tab(text: 'إرسال طلب تفعيل'),
-            Tab(text: 'تسجيل الدخول / الفحص'),
+            Tab(text: 'تسجيل الدخول / التفعيل'),
           ],
         ),
       ),
@@ -133,7 +131,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('أدخل بياناتك وسيصل إشعار فوري للمطور لتفعيل حسابك', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text('أدخل بياناتك وسنرسل إشعاراً للمطور للحصول على رمز التفعيل', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 20),
                 TextField(
                   controller: _nameController,
@@ -169,7 +167,8 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                        onPressed: () => _launchURL('https://wa.me/9647800000000'), // ضع رقمك هنا
+                        // ضع رقم هاتفك هنا بصيغة دولية بدون +
+                        onPressed: () => _launchURL('https://wa.me/9647800000000'), 
                         icon: const Icon(Icons.chat, color: Colors.white),
                         label: const Text('واتساب', style: TextStyle(color: Colors.white)),
                       ),
@@ -178,7 +177,8 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
                     Expanded(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088CC)),
-                        onPressed: () => _launchURL('https://t.me/huzt_m'),
+                        // رابط المباشر لليوزر التليجرام الخاص بك
+                        onPressed: () => _launchURL('https://t.me/huzt_m'), 
                         icon: const Icon(Icons.send, color: Colors.white),
                         label: const Text('تليجرام', style: TextStyle(color: Colors.white)),
                       ),
@@ -194,19 +194,19 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('للحسابات المفعلة أو دخول المشرف العام', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text('أدخل رقم الهاتف وكود التفعيل (11 رقم) أو دخول الأدمن', style: TextStyle(color: Colors.white70, fontSize: 13)),
                 const SizedBox(height: 20),
                 TextField(
-                  controller: _loginIdentifierController,
+                  controller: _loginPhoneController,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('رقم الهاتف (للعميل) أو البريد (للأدمن)', Icons.person),
+                  decoration: _inputDecoration('رقم الهاتف (للعميل) / اسم المشرف', Icons.person),
                 ),
                 const SizedBox(height: 12),
                 TextField(
-                  controller: _loginPasswordController,
+                  controller: _loginCodeController,
                   obscureText: true,
                   style: const TextStyle(color: Colors.white),
-                  decoration: _inputDecoration('كلمة المرور (خاصة بالأدمن فقط)', Icons.lock),
+                  decoration: _inputDecoration('كود التفعيل (11 رقم) / رمز المشرف', Icons.lock),
                 ),
                 const SizedBox(height: 20),
                 ElevatedButton(
