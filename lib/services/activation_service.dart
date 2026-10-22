@@ -3,159 +3,126 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ActivationService {
-  static const String binId = '6ad894f0ffd5d160537f0188';
-  static const String masterKey = r'$2a$10$4Tc0iksgy9.hUeH4n5LeCewNlWf46yUlr5vu5DfgU3KVbieJF5OvK';
-  static const String accessKey = r'$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG';
+  // إعدادات JSONBin
+  static const String _binId = '6ad894f0ffd5d160537f0188';
+  static const String _masterKey = '\$2a\$10\$4Tc0iksgy9.hUeH4n5LeCewNlWf46yUlr5vu5DfgU3KVbieJF5OvK';
+  static const String _accessKey = '\$2a\$10\$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG';
 
-  static const String telegramBotToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
-  static const String telegramChatId = '6590858813';
+  // إعدادات التليجرام
+  static const String _botToken = '8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I';
+  static const String _chatId = '6590858813';
 
+  // الرمز القياسي
+  static const String _validCode = '20319920';
+
+  // المفاتيح المحلية
+  static const String _kActivated = 'is_local_activated';
+  static const String _kAdminLoggedIn = 'is_admin_logged_in';
+
+  // التحقق من التفعيل المحلي
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('is_activated') ?? false;
+    return prefs.getBool(_kActivated) ?? false;
   }
 
   static Future<void> setLocalActivated(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_activated', value);
+    await prefs.setBool(_kActivated, value);
   }
 
+  // التحقق من دخول المشرف
   static Future<bool> isAdminLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('is_admin_logged') ?? false;
+    return prefs.getBool(_kAdminLoggedIn) ?? false;
   }
 
   static Future<void> setAdminLoggedIn(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_admin_logged', value);
+    await prefs.setBool(_kAdminLoggedIn, value);
   }
 
-  // جلب البيانات مع حماية كاملة ضد التعليق
-  static Future<Map<String, dynamic>> fetchCloudDebugResult() async {
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.jsonbin.io/v3/b/$binId/latest'),
-        headers: {
-          'X-Master-Key': masterKey,
-          'X-Access-Key': accessKey,
-        },
-      ).timeout(const Duration(seconds: 7));
-
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> decoded = jsonDecode(response.body);
-        List<Map<String, dynamic>> usersList = [];
-
-        if (decoded.containsKey('record')) {
-          final record = decoded['record'];
-          if (record is Map && record.containsKey('users') && record['users'] is List) {
-            usersList = List<Map<String, dynamic>>.from(record['users'].map((e) => Map<String, dynamic>.from(e)));
-          } else if (record is List) {
-            usersList = List<Map<String, dynamic>>.from(record.map((e) => Map<String, dynamic>.from(e)));
-          }
-        }
-        return {'success': true, 'users': usersList, 'raw': 'تم الاتصال بنجاح. عدد المستخدمين: ${usersList.length}'};
-      } else {
-        return {'success': false, 'users': [], 'raw': 'خطأ سيرفر: ${response.statusCode}'};
-      }
-    } catch (e) {
-      return {'success': false, 'users': [], 'raw': 'خطأ شبكة/اتصال: $e'};
-    }
-  }
-
-  static Future<List<Map<String, dynamic>>> fetchUsersFromCloud() async {
-    final res = await fetchCloudDebugResult();
-    return res['users'] as List<Map<String, dynamic>>;
-  }
-
-  static Future<bool> registerUserDual({required String username, required String email}) async {
-    try {
-      final cloudRes = await fetchCloudDebugResult();
-      List<Map<String, dynamic>> users = cloudRes['users'];
-      
-      users.removeWhere((u) => u['username'] == username);
-      users.add({
-        'username': username,
-        'email': email,
-        'status': 'معلق ⏳',
-        'date': DateTime.now().toString().split('.')[0],
-      });
-
-      final response = await http.put(
-        Uri.parse('https://api.jsonbin.io/v3/b/$binId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': masterKey,
-          'X-Access-Key': accessKey,
-        },
-        body: jsonEncode({'users': users}),
-      ).timeout(const Duration(seconds: 7));
-
-      return response.statusCode == 200;
-    } catch (e) {
+  // تسجيل طلب جديد والتفعيل (هذه الدالة المطلوبة)
+  static Future<bool> registerAndActivate(String name, String phone, String code) async {
+    if (code.trim() != _validCode) {
       return false;
     }
+
+    // حفظ التفعيل محلياً
+    await setLocalActivated(true);
+
+    // إرسال إشعار تليجرام
+    _sendTelegramNotification('طلب تفعيل جديد:\nالاسم: $name\nالهاتف: $phone');
+
+    // حفظ البيانات سحابياً
+    _saveUserToCloud(name, phone);
+
+    return true;
   }
 
-  static Future<bool> checkUserActivationDual(String username) async {
-    List<Map<String, dynamic>> users = await fetchUsersFromCloud();
-    for (var u in users) {
-      if (u['username'] == username && (u['status'] == 'تم التفعيل ✅' || u['status'] == 'مفعل')) {
-        await setLocalActivated(true);
-        return true;
-      }
+  // تسجيل الدخول (للعملاء أو المشرف) (هذه الدالة المطلوبة)
+  static Future<bool> login(String email, String password) async {
+    // حساب المشرف الرئيسي
+    if (email.trim() == 'huzt.m1@gmail.com' && password.trim() == '20819921992') {
+      await setAdminLoggedIn(true);
+      return true;
     }
-    return false;
+
+    // التحقق من التفعيل المحلي
+    bool activated = await isLocalActivated();
+    return activated;
   }
 
-  static Future<bool> approveUserDual(String username) async {
+  // إرسال إشعار تليجرام
+  static Future<void> _sendTelegramNotification(String message) async {
     try {
-      final cloudRes = await fetchCloudDebugResult();
-      List<Map<String, dynamic>> users = cloudRes['users'];
-      for (var u in users) {
-        if (u['username'] == username) {
-          u['status'] = 'تم التفعيل ✅';
-        }
-      }
-
-      final response = await http.put(
-        Uri.parse('https://api.jsonbin.io/v3/b/$binId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Master-Key': masterKey,
-          'X-Access-Key': accessKey,
-        },
-        body: jsonEncode({'users': users}),
-      ).timeout(const Duration(seconds: 7));
-
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  static Future<bool> sendTelegramActivationRequest({
-    required String username,
-    required String email,
-  }) async {
-    final String textMsg = '🚨 طلب تفعيل برنامج جديد!\n\n'
-        '👤 المستخدم: $username\n'
-        '📧 البريد: $email\n'
-        '⏱ الوقت: ${DateTime.now().toString().split('.')[0]}';
-
-    try {
-      final url = Uri.parse('https://api.telegram.org/bot$telegramBotToken/sendMessage');
-      final response = await http.post(
+      final url = Uri.parse('https://api.telegram.org/bot$_botToken/sendMessage');
+      await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'chat_id': telegramChatId,
-          'text': textMsg,
+          'chat_id': _chatId,
+          'text': message,
         }),
-      ).timeout(const Duration(seconds: 7));
+      );
+    } catch (_) {}
+  }
 
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
+  // حفظ بيانات المستخدم سحابياً
+  static Future<void> _saveUserToCloud(String name, String phone) async {
+    try {
+      final url = Uri.parse('https://api.jsonbin.io/v3/b/$_binId');
+      final response = await http.get(
+        url,
+        headers: {
+          'X-Master-Key': _masterKey,
+          'X-Access-Key': _accessKey,
+        },
+      );
+
+      Map<String, dynamic> currentData = {};
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        currentData = Map<String, dynamic>.from(body['record'] ?? {});
+      }
+
+      List users = currentData['users'] ?? [];
+      users.add({
+        'name': name,
+        'phone': phone,
+        'date': DateTime.now().toIso8601String(),
+      });
+
+      currentData['users'] = users;
+
+      await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Master-Key': _masterKey,
+          'X-Access-Key': _accessKey,
+        },
+        body: jsonEncode(currentData),
+      );
+    } catch (_) {}
   }
 }
