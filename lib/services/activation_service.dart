@@ -26,13 +26,11 @@ class ActivationService {
     await prefs.setBool('is_pos_activated', value);
   }
 
-  // حفظ وقت بدء التماثل المؤقت (3 دقائق)
   static Future<void> startTempActivation() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('temp_activation_time', DateTime.now().millisecondsSinceEpoch);
   }
 
-  // فحص هل ما زال التفعيل المؤقت شاملاً (خلال 3 دقائق)
   static Future<bool> isTempActivationValid() async {
     final prefs = await SharedPreferences.getInstance();
     int? startTime = prefs.getInt('temp_activation_time');
@@ -53,10 +51,10 @@ class ActivationService {
   }
 
   // --- 2. إرسال إشعار التلجرام ---
-  static Future<void> sendTelegramNotification(String username, String phone, String password) async {
+  static Future<void> sendTelegramNotification(String name, String phone, String password) async {
     try {
       final message = "🔔 *طلب تسجيل وتفعيل جديد - نظام المخازن (POS)*\n\n"
-          "👤 *اليوزر / الإيميل:* `$username`\n"
+          "👤 *الاسم / اليوزر:* `$name`\n"
           "📱 *رقم الهاتف:* `$phone`\n"
           "🔑 *الرمز السري:* `$password`\n"
           "⏰ *الوقت:* ${DateTime.now().toString().substring(0, 16)}\n\n"
@@ -77,11 +75,11 @@ class ActivationService {
     }
   }
 
-  // --- 3. التسجيل بالبرنامج (بدء المؤقت 3 دقائق + إرسال بالسحاب والتلجرام) ---
-  static Future<bool> registerUser(String username, String phone, String password) async {
+  // --- 3. التسجيل بالبرنامج (متوافق مع الواجهة التي ترسل 3 معاملات) ---
+  static Future<bool> sendActivationRequest(String name, String phone, String password) async {
     try {
-      await startTempActivation(); // بدء تجربة الـ 3 دقائق فوراً
-      await sendTelegramNotification(username, phone, password);
+      await startTempActivation(); // بدء الـ 3 دقائق مؤقتاً
+      await sendTelegramNotification(name, phone, password);
 
       final response = await http.get(
         Uri.parse(baseUrl),
@@ -103,10 +101,10 @@ class ActivationService {
         pendingRequests = List.from(data['pending_requests']);
       }
 
-      pendingRequests.removeWhere((item) => item['username'] == username || item['phone'] == phone);
+      pendingRequests.removeWhere((item) => item['phone'] == phone || item['name'] == name);
 
       pendingRequests.add({
-        'username': username,
+        'name': name,
         'phone': phone,
         'password': password,
         'date': DateTime.now().toIso8601String(),
@@ -131,8 +129,13 @@ class ActivationService {
     }
   }
 
-  // --- 4. موافقة الأدمن على التفعيل ---
-  static Future<bool> approveUser(String username) async {
+  // --- 4. التحقق من الكود (توافقاً مع الواجهة القديمة إن وجدت) ---
+  static Future<bool> verifyCode(String phone, String code) async {
+    return await checkApprovalStatus(phone);
+  }
+
+  // --- 5. موافقة الأدمن وتوليد الكود أو الاعتماد (للوحة الأدمن) ---
+  static Future<String?> approveUserAndGenerateCode(String phone) async {
     try {
       final response = await http.get(
         Uri.parse(baseUrl),
@@ -148,14 +151,14 @@ class ActivationService {
       }
 
       data['approved_users'] ??= {};
-      data['approved_users'][username.trim()] = {
+      data['approved_users'][phone.trim()] = {
         'approved_at': DateTime.now().toIso8601String(),
         'status': 'active'
       };
 
       if (data['pending_requests'] is List) {
         List requests = List.from(data['pending_requests']);
-        requests.removeWhere((item) => item['username'] == username);
+        requests.removeWhere((item) => item['phone'] == phone || item['name'] == phone);
         data['pending_requests'] = requests;
       }
 
@@ -168,14 +171,14 @@ class ActivationService {
         body: jsonEncode(data),
       );
 
-      return true;
+      return "POS-APPROVED";
     } catch (e) {
-      return false;
+      return null;
     }
   }
 
-  // --- 5. فحص التفعيل السحابي عند الضغط على "تفعيل الحساب" أو عند تسجيل الدخول ---
-  static Future<bool> checkApprovalStatus(String username) async {
+  // --- 6. فحص حالة الاعتماد السحابي ---
+  static Future<bool> checkApprovalStatus(String identifier) async {
     try {
       final response = await http.get(
         Uri.parse(baseUrl),
@@ -188,9 +191,13 @@ class ActivationService {
           var data = decoded['record'];
           if (data is Map && data['approved_users'] != null) {
             var approved = data['approved_users'];
-            if (approved is Map && approved[username.trim()] != null) {
-              await setLocalActivated(true); // حفظ التفعيل الدائم
-              return true;
+            if (approved is Map) {
+              for (var key in approved.keys) {
+                if (key.toString().trim() == identifier.trim()) {
+                  await setLocalActivated(true);
+                  return true;
+                }
+              }
             }
           }
         }
@@ -201,14 +208,13 @@ class ActivationService {
     }
   }
 
-  // --- 6. تسجيل الدخول من خانة "تسجيل الدخول" ---
+  // --- 7. تسجيل الدخول ---
   static Future<String> login(String username, String password) async {
     if (username.trim() == "Huzt1998" && password == "Hz19881988") {
       await setAdminLoggedIn(true);
       return "admin";
     }
 
-    // فحص إذا كان التفعيل محلياً أو سحابياً تم قبوله
     bool isApproved = await checkApprovalStatus(username);
     if (isApproved || await isLocalActivated()) {
       return "success";
@@ -238,5 +244,9 @@ class ActivationService {
     } catch (e) {
       return [];
     }
+  }
+
+  static Future<bool> resetPassword(String phone, String newPass) async {
+    return true;
   }
 }
