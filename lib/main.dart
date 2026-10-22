@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F172A)),
         useMaterial3: true,
       ),
-      home: const ActivationScreen(),
+      home: ActivationScreen(),
     );
   }
 }
