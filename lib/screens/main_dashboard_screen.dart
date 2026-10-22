@@ -56,7 +56,7 @@ class MainDashboardScreen extends StatelessWidget {
                     children: [
                       Text('أهلاً بك يا أبو مؤمل', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                       SizedBox(height: 4),
-                      Text('النسخة مفعلة وجاهزة للعمل بكفاءة عالية', style: TextStyle(color: Colors.white60, fontSize: 12)),
+                      Text('النسخة مفعلة وجاهزة للعمل بكفاءة', style: TextStyle(color: Colors.white60, fontSize: 12)),
                     ],
                   ),
                 ],
