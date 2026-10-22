@@ -7,7 +7,7 @@ import 'screens/activation_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة قواعد البيانات للعمل على منصة Windows / Linux / macOS بدون أخطاء
+  // تهيئة قواعد البيانات للعمل على الويندوز وباقي المنصات
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F172A)),
         useMaterial3: true,
       ),
-      home: ActivationScreen(),
+      home: const ActivationScreen(),
     );
   }
 }
