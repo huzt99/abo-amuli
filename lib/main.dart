@@ -7,7 +7,7 @@ import 'screens/activation_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // تهيئة قواعد البيانات للعمل على الويندوز وباقي المنصات
+  // تهيئة قواعد البيانات للكمبيوتر (الويندوز)
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
