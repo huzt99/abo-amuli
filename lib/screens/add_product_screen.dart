@@ -1,86 +1,81 @@
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
 
-class AddProductScreen extends StatefulWidget {
-  const AddProductScreen({super.key});
+class ProductsScreen extends StatefulWidget {
+  const ProductsScreen({super.key});
 
   @override
-  State<AddProductScreen> createState() => _AddProductScreenState();
+  State<ProductsScreen> createState() => _ProductsScreenState();
 }
 
-class _AddProductScreenState extends State<AddProductScreen> {
-  bool _isBarcodeMode = true; // true للمواد بالباركود، false للمواد بدون باركود
-  
-  final _barcodeController = TextEditingController();
+class _ProductsScreenState extends State<ProductsScreen> {
+  final List<Map<String, dynamic>> _products = [
+    {'name': 'منتج 1', 'price': 5000, 'category': 'مشروبات'},
+    {'name': 'منتج 2', 'price': 10000, 'category': 'أغذية'},
+    {'name': 'منتج 3', 'price': 15000, 'category': 'إلكترونيات'},
+  ];
+
   final _nameController = TextEditingController();
-  final _qtyController = TextEditingController();
-  final _buyPriceController = TextEditingController();
-  final _sellPriceController = TextEditingController();
-  final _alertController = TextEditingController();
+  final _priceController = TextEditingController();
 
-  // قوائم تاريخ الصلاحية المنسدلة
-  int _selectedYear = 2026;
-  int _selectedMonth = 1;
-  int _selectedDay = 1;
+  void _addNewProduct() {
+    String name = _nameController.text.trim();
+    double? price = double.tryParse(_priceController.text.trim());
 
-  final List<int> _years = List.generate(35, (index) => 2026 + index); // من 2026 إلى 4060
-  final List<int> _months = List.generate(12, (index) => index + 1);
-  final List<int> _days = List.generate(31, (index) => index + 1);
-
-  bool _isQuick = false;
-
-  void _saveProduct() async {
-    if (_nameController.text.isEmpty ||
-        _qtyController.text.isEmpty ||
-        _sellPriceController.text.isEmpty) {
+    if (name.isEmpty || price == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء إدخال الحقول الأساسية (اسم المادة، الكمية، سعر البيع)')),
+        const SnackBar(content: Text('يرجى إدخال اسم المنتج والسعر بشكل صحيح')),
       );
-    return;
+      return;
     }
 
-    String barcode = '';
-    if (_isBarcodeMode) {
-      barcode = _barcodeController.text.trim();
-      if (barcode.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('الرجاء إدخال أو مسح الباركود للمادة')),
-        );
-        return;
-      }
-    } else {
-      // توليد باركود تلقائي فريد للمواد بدون باركود
-      barcode = 'NO_BC_${DateTime.now().millisecondsSinceEpoch}';
-    }
+    setState(() {
+      _products.add({'name': name, 'price': price, 'category': 'عام'});
+      _nameController.clear();
+      _priceController.clear();
+    });
 
-    String expiryDate = '$_selectedYear-${_selectedMonth.toString().padLeft(2, '0')}-${_selectedDay.toString().padLeft(2, '0')}';
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم إضافة المنتج بنجاح')),
+    );
+  }
 
-    Map<String, dynamic> row = {
-      'barcode': barcode,
-      'name': _nameController.text.trim(),
-      'quantity': double.tryParse(_qtyController.text) ?? 0.0,
-      'buy_price': double.tryParse(_buyPriceController.text) ?? 0.0,
-      'sell_price': double.tryParse(_sellPriceController.text) ?? 0.0,
-      'expiry_date': expiryDate,
-      'alert_days': int.tryParse(_alertController.text) ?? 5,
-      'is_quick': _isQuick ? 1 : 0,
-    };
-
-    try {
-      await DatabaseHelper.instance.insertProduct(row);
-      
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ المادة بنجاح في المخزن!'), backgroundColor: Colors.green),
-      );
-
-      Navigator.pop(context);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطأ أثناء الحفظ: $e'), backgroundColor: Colors.red),
-      );
-    }
+  void _showAddProductDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('إضافة صنف / منتج جديد', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'اسم المنتج', labelStyle: TextStyle(color: Colors.white60)),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _priceController,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(labelText: 'السعر (د.ع)', labelStyle: TextStyle(color: Colors.white60)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: _addNewProduct,
+            child: const Text('حفظ', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -88,132 +83,32 @@ class _AddProductScreenState extends State<AddProductScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
       appBar: AppBar(
-        title: const Text('إضافة منتج جديد للمخزن'),
+        title: const Text('إدارة المنتجات والأصناف', style: TextStyle(color: Colors.white, fontSize: 16)),
         backgroundColor: const Color(0xFF1E293B),
+        centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // أزرار الاختيار بين بباركود أو بدون باركود
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => setState(() => _isBarcodeMode = true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isBarcodeMode ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
-                    ),
-                    child: const Text('مادة بباركود'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => setState(() => _isBarcodeMode = false),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: !_isBarcodeMode ? const Color(0xFF3B82F6) : const Color(0xFF1E293B),
-                    ),
-                    child: const Text('مادة بدون باركود'),
-                  ),
-                ),
-              ],
+      body: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _products.length,
+        itemBuilder: (context, index) {
+          var p = _products[index];
+          return Card(
+            color: const Color(0xFF1E293B),
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: ListTile(
+              leading: const Icon(Icons.category, color: Color(0xFFF59E0B)),
+              title: Text(p['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: Text('الفئة: ${p['category']}', style: const TextStyle(color: Colors.white60, fontSize: 12)),
+              trailing: Text('${p['price']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
             ),
-            const SizedBox(height: 20),
-
-            if (_isBarcodeMode)
-              _buildTextField(_barcodeController, 'باركود المادة (امسح أو اكتب الباركود)'),
-
-            _buildTextField(_nameController, 'اسم المادة (مثال: طحين، سكر، بيبسي)'),
-            _buildTextField(_qtyController, 'الكمية المتوفرة', isNumber: true),
-            _buildTextField(_buyPriceController, 'سعر الشراء', isNumber: true),
-            _buildTextField(_sellPriceController, 'سعر البيع للزبون', isNumber: true),
-
-            const SizedBox(height: 10),
-            const Text('تاريخ انتهاء الصلاحية:', style: TextStyle(color: Colors.white70, fontSize: 14)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildDropdown('السنة', _selectedYear, _years, (val) => setState(() => _selectedYear = val!)),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildDropdown('الشهر', _selectedMonth, _months, (val) => setState(() => _selectedMonth = val!)),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _buildDropdown('اليوم', _selectedDay, _days, (val) => setState(() => _selectedDay = val!)),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 16),
-            _buildTextField(_alertController, 'فترة التنبيه لانتهاء الصلاحية (بالأيام)', isNumber: true),
-
-            CheckboxListTile(
-              title: const Text('إظهار في أزرار اللمس السريعة', style: TextStyle(color: Colors.white)),
-              value: _isQuick,
-              onChanged: (val) => setState(() => _isQuick = val ?? false),
-              activeColor: const Color(0xFF3B82F6),
-            ),
-            const SizedBox(height: 20),
-
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _saveProduct,
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                child: const Text('حفظ المادة في المخزن', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
-    );
-  }
-
-  Widget _buildTextField(TextEditingController controller, String label, {bool isNumber = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14.0),
-      child: TextField(
-        controller: controller,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: const TextStyle(color: Colors.white70),
-          filled: true,
-          fillColor: const Color(0xFF1E293B),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdown(String label, int value, List<int> items, ValueChanged<int?> onChanged) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white24),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          value: value,
-          dropdownColor: const Color(0xFF1E293B),
-          style: const TextStyle(color: Colors.white),
-          items: items.map((int item) {
-            return DropdownMenuItem<int>(
-              value: item,
-              child: Text('$item'),
-            );
-          }).toList(),
-          onChanged: onChanged,
-        ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFFF59E0B),
+        onPressed: _showAddProductDialog,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }
