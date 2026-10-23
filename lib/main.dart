@@ -1211,4 +1211,24 @@ class ReportsScreen extends StatelessWidget {
   const ReportsScreen({Key? key}) : super(key: key);
 
   @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('التقارير والأرباح'), backgroundColor: const Color(0xFF1E293B)),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            Card(
+              color: const Color(0xFF1E293B),
+              child: const ListTile(
+                leading: Icon(Icons.trending_up, color: Colors.purple, size: 40),
+                title: Text('إجمالي المبيعات اليومية', style: TextStyle(color: Colors.white60)),
+                subtitle: Text('125,000 د.ع', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
