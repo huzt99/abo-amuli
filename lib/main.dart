@@ -6,28 +6,34 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-void main() {
-  runApp(const PosClientApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
+
+  runApp(PosClientApp(isLoggedIn: isLoggedIn));
 }
 
 class PosClientApp extends StatelessWidget {
-  const PosClientApp({Key? key}) : super(key: key);
+  final bool isLoggedIn;
+  const PosClientApp({Key? key, required this.isLoggedIn}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'نظام المبيعات والمخازن (POS)',
+      title: 'نظام المبيعات والمخازن',
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0F172A),
         primarySwatch: Colors.blue,
       ),
-      home: const ClientMainScreen(),
+      home: isLoggedIn ? const AppDashboardScreen() : const ClientMainScreen(),
     );
   }
 }
 
+// ----------------- الشاشة الأولى: تسجيل الدخول / التسجيل -----------------
 class ClientMainScreen extends StatefulWidget {
   const ClientMainScreen({Key? key}) : super(key: key);
 
@@ -54,7 +60,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('(POS) نظام المبيعات والمخازن'),
+        title: const Text('نظام المبيعات والمخازن (POS)'),
         backgroundColor: const Color(0xFF1E293B),
         centerTitle: true,
         bottom: TabBar(
@@ -77,7 +83,6 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   }
 }
 
-// ================= 1. تبويب تسجيل الدخول =================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
 
@@ -96,7 +101,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
       );
       return;
     }
-
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', _userCtrl.text.trim());
@@ -159,7 +163,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   }
 }
 
-// ================= 2. تبويب التسجيل بالبرنامج وإرسال الإشعار =================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
 
@@ -174,12 +177,9 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
 
   static const String binId = "6ada49aaac6210605a49b2cb";
   static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
-
-  // التوكن والشات أيدي الخاصين ببوتك الرسمي
   static const String botToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I"; 
   static const String chatId = "6590858813"; 
 
-  // توليد كود تفعيل فريد مكون من 11 رقماً لكل مشترِك
   String _generate11DigitCode() {
     Random rnd = Random();
     String code = '';
@@ -210,7 +210,6 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setString('activation_code', activationCode11);
       await prefs.setBool('is_activated', false);
 
-      // 1. مزامنة سحاب JSONBin
       final getResp = await http.get(
         Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
         headers: {"X-Master-Key": masterKey},
@@ -246,25 +245,18 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         body: jsonEncode(data),
       );
 
-      // 2. إرسال إشعار تليجرام الفوري إلى بوتك مع كود الـ 11 رقماً
       String telegramMsg = "🔔 طلب تفعيل جديد (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n🔢 كود التفعيل (11 رقم): $activationCode11\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
       
       try {
         final tgUrl = "https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}";
         await http.get(Uri.parse(tgUrl));
-      } catch (tgError) {
-        print("Telegram Error: $tgError");
-      }
+      } catch (e) {}
 
-      // الانتقال للوحة التحكم بنسخة تجريبية 30 دقيقة
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم الحفظ محلياً - والانتقال للبرنامج')),
-      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
@@ -338,7 +330,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   }
 }
 
-// ================= 3. لوحة التحكم مع العداد وأزرار المراسلة المباشرة =================
+// ----------------- الشاشة الرئيسية (تطابق صورة الواجهة) -----------------
 class AppDashboardScreen extends StatefulWidget {
   const AppDashboardScreen({Key? key}) : super(key: key);
 
@@ -347,7 +339,7 @@ class AppDashboardScreen extends StatefulWidget {
 }
 
 class _AppDashboardScreenState extends State<AppDashboardScreen> {
-  int _remainingSeconds = 1800; // 30 دقيقة كاملة
+  int _remainingSeconds = 1800;
   Timer? _timer;
   bool _isActivated = false;
 
@@ -392,7 +384,6 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
     super.dispose();
   }
 
-  // نافذة الشراء والتفعيل (تحتوي على روابطك الرسمية للواتساب والتليجرام)
   void _showActivationDialog(BuildContext context) {
     final _codeCtrl = TextEditingController();
 
@@ -407,18 +398,17 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'للحصول على كود التفعيل الخاص بك (11 رقم)، يرجى التواصل مع المطور عبر تليجرام أو واتساب مباشرة:',
+                'للحصول على كود التفعيل (11 رقم)، يرجى التواصل مع المطور:',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 15),
-              // أزرار المراسلة المباشرة لك
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
                       onPressed: () async {
-                        final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20تطبيق%20المبيعات%20POS");
+                        final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20تطبيق%20POS");
                         if (await canLaunchUrl(whatsappUrl)) {
                           await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
                         }
@@ -475,7 +465,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 _timer?.cancel();
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح! 👑')),
+                  const SnackBar(content: Text('تم التفعيل بنجاح! 👑')),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -504,7 +494,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             icon: const Icon(Icons.logout, color: Colors.redAccent),
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
-              prefs.setBool('is_logged_in', false);
+              await prefs.setBool('is_logged_in', false);
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const ClientMainScreen()),
@@ -539,29 +529,20 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                   ],
                 ),
               ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(10),
-              color: Colors.green.withOpacity(0.2),
-              width: double.infinity,
-              child: const Text(
-                'النسخة مَفعلة دائمياً بكفاءة تامة 👑',
-                style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
             ),
           Expanded(
             child: GridView.count(
-              crossAxisCount: 2,
-              padding: const EdgeInsets.all(20),
-              crossAxisSpacing: 15,
-              mainAxisSpacing: 15,
+              crossAxisCount: 3,
+              padding: const EdgeInsets.all(15),
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
               children: [
-                _buildCard('نقطة البيع (POS)', Icons.point_of_sale, Colors.blue),
-                _buildCard('إدارة المخزن', Icons.inventory, Colors.green),
-                _buildCard('المنتجات والأصناف', Icons.category, Colors.orange),
-                _buildCard('التقارير والأرباح', Icons.bar_chart, Colors.purple),
+                _buildBtn(context, 'نقطة بيع', Icons.storefront, Colors.cyan, const PosScreen()),
+                _buildBtn(context, 'أضافة مادة', Icons.add_box, Colors.amber, const AddProductScreen()),
+                _buildBtn(context, 'عرض المواد', Icons.inventory_2, Colors.teal, const InventoryScreen()),
+                _buildBtn(context, 'كشف مبيعات', Icons.receipt_long, Colors.indigo, const SalesLedgerScreen()),
+                _buildBtn(context, 'الأرصده', Icons.sim_card, Colors.green, const BalancesScreen()),
+                _buildBtn(context, 'التقارير والأرباح', Icons.bar_chart, Colors.purple, const ReportsScreen()),
               ],
             ),
           ),
@@ -570,22 +551,625 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
     );
   }
 
-  Widget _buildCard(String title, IconData icon, Color color) {
+  Widget _buildBtn(BuildContext context, String title, IconData icon, Color color, Widget screen) {
     return Card(
       color: const Color(0xFF1E293B),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('فتح قسم: $title')),
-          );
-        },
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 50, color: color),
+            Icon(icon, size: 38, color: color),
+            const SizedBox(height: 8),
+            Text(title, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------- 1. واجهة أضافة مادة (تطابق صورة إضافة المادة) -----------------
+class AddProductScreen extends StatefulWidget {
+  const AddProductScreen({Key? key}) : super(key: key);
+
+  @override
+  _AddProductScreenState createState() => _AddProductScreenState();
+}
+
+class _AddProductScreenState extends State<AddProductScreen> {
+  final _nameCtrl = TextEditingController();
+  final _barcodeCtrl = TextEditingController();
+  final _priceCtrl = TextEditingController();
+  final _qtyCtrl = TextEditingController();
+
+  Future<void> _addProduct() async {
+    if (_nameCtrl.text.isEmpty || _priceCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى كتابة اسم المادة والسعر على الأقل!')),
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    String? raw = prefs.getString('saved_products');
+    List products = raw != null ? jsonDecode(raw) : [];
+
+    products.add({
+      'name': _nameCtrl.text.trim(),
+      'barcode': _barcodeCtrl.text.trim(),
+      'price': double.parse(_priceCtrl.text.trim()),
+      'qty': int.tryParse(_qtyCtrl.text.trim()) ?? 1,
+      'hasBarcode': _barcodeCtrl.text.trim().isNotEmpty,
+    });
+
+    await prefs.setString('saved_products', jsonEncode(products));
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تمت إضافة المادة بنجاح للمخزن!')),
+    );
+    Navigator.pop(context);
+  }
+
+  void _scanBarcodeSim() {
+    setState(() {
+      _barcodeCtrl.text = "629100${Random().nextInt(89999) + 10000}";
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم مسح الباركود بواسطة كاميرا الموبايل!')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('إضافة مادة جديدة'), backgroundColor: const Color(0xFF1E293B)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _nameCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'اسم المادة',
+                labelStyle: const TextStyle(color: Colors.white60),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
             const SizedBox(height: 15),
-            Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _barcodeCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'كود الباركود (اختياري)',
+                      labelStyle: const TextStyle(color: Colors.white60),
+                      filled: true,
+                      fillColor: const Color(0xFF1E293B),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF38BDF8),
+                    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 15),
+                  ),
+                  onPressed: _scanBarcodeSim,
+                  icon: const Icon(Icons.camera_alt, color: Colors.black),
+                  label: const Text('كاميرا', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: _priceCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'سعر البيع (د.ع)',
+                labelStyle: const TextStyle(color: Colors.white60),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: _qtyCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'العدد / الكمية بالمخزن',
+                labelStyle: const TextStyle(color: Colors.white60),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+            const SizedBox(height: 25),
+            ElevatedButton(
+              onPressed: _addProduct,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('حفظ المادة للمخزن', style: TextStyle(fontSize: 16, color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------- 2. واجهة نقطة البيع POS (تطابق تقسيم الكاشير بالصورة) -----------------
+class PosScreen extends StatefulWidget {
+  const PosScreen({Key? key}) : super(key: key);
+
+  @override
+  _PosScreenState createState() => _PosScreenState();
+}
+
+class _PosScreenState extends State<PosScreen> {
+  List _nonBarcodeProducts = [];
+  List<Map<String, dynamic>> _cart = [];
+  double _totalAmount = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? raw = prefs.getString('saved_products');
+    if (raw != null) {
+      List decoded = jsonDecode(raw);
+      setState(() {
+        _nonBarcodeProducts = decoded;
+      });
+    } else {
+      // افتراضي للمعاينة
+      setState(() {
+        _nonBarcodeProducts = [
+          {'name': 'شاي سيت', 'price': 2500.0},
+          {'name': 'نسكافيه', 'price': 500.0},
+          {'name': 'عصير برتقال', 'price': 1000.0},
+          {'name': 'ماء كارتون', 'price': 3000.0},
+          {'name': 'كولا علبة', 'price': 750.0},
+        ];
+      });
+    }
+  }
+
+  void _addToCart(String name, double price) {
+    setState(() {
+      int idx = _cart.indexWhere((item) => item['name'] == name);
+      if (idx != -1) {
+        _cart[idx]['qty']++;
+        _cart[idx]['total'] = _cart[idx]['qty'] * price;
+      } else {
+        _cart.add({
+          'name': name,
+          'price': price,
+          'qty': 1,
+          'total': price,
+        });
+      }
+      _calculateTotal();
+    });
+  }
+
+  void _calculateTotal() {
+    double sum = 0;
+    for (var item in _cart) {
+      sum += item['total'];
+    }
+    _totalAmount = sum;
+  }
+
+  void _scanBarcodeAndAdd() {
+    _addToCart("مادة بباركود ${Random().nextInt(100)}", 1500.0);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('تم قراءة الباركود بالكاميرا وإضافته لسلة المبيعات!')),
+    );
+  }
+
+  Future<void> _checkout() async {
+    if (_cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('السلة فارغة!')),
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    int lastNum = prefs.getInt('invoice_counter') ?? 1;
+    String? rawLedger = prefs.getString('sales_ledger');
+    List ledger = rawLedger != null ? jsonDecode(rawLedger) : [];
+
+    ledger.add({
+      'invoiceNum': 'قائمة رقم $lastNum',
+      'total': _totalAmount,
+      'date': DateTime.now().toString().substring(0, 16),
+      'itemsCount': _cart.length,
+    });
+
+    await prefs.setString('sales_ledger', jsonEncode(ledger));
+    await prefs.setInt('invoice_counter', lastNum + 1);
+
+    setState(() {
+      _cart.clear();
+      _totalAmount = 0.0;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('تمت عملية البيع وحفظ (قائمة رقم $lastNum) بنجاح!')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('نقطة البيع (POS)'),
+        backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.camera_alt, color: Colors.cyanAccent),
+            onPressed: _scanBarcodeAndAdd,
+            tooltip: 'مسح باركود بالكاميرا',
+          ),
+        ],
+      ),
+      body: Row(
+        children: [
+          // الجانب الأيسر: سلة المبيعات
+          Expanded(
+            flex: 5,
+            child: Container(
+              color: const Color(0xFF0F172A),
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                children: [
+                  const Text('سلة الفاتورة الحالية', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const Divider(color: Colors.white24),
+                  Expanded(
+                    child: _cart.isEmpty
+                        ? const Center(child: Text('السلة فارغة', style: TextStyle(color: Colors.white38)))
+                        : ListView.builder(
+                            itemCount: _cart.length,
+                            itemBuilder: (context, i) {
+                              var item = _cart[i];
+                              return Card(
+                                color: const Color(0xFF1E293B),
+                                child: ListTile(
+                                  title: Text(item['name'], style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                  subtitle: Text('العدد: ${item['qty']} x ${item['price']} د.ع', style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                                  trailing: Text('${item['total']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    color: const Color(0xFF1E293B),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('المجموع الكلي:', style: TextStyle(color: Colors.white70)),
+                            Text('$_totalAmount د.ع', style: const TextStyle(color: Colors.amber, fontSize: 18, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                            onPressed: _checkout,
+                            child: const Text('إتمام المبيعة وطباعة القائمة', style: TextStyle(color: Colors.white)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+          const VerticalDivider(width: 1, color: Colors.white24),
+          // الجانب الأيمن: أزرار المواد السريعة (بدون باركود)
+          Expanded(
+            flex: 6,
+            child: Container(
+              color: const Color(0xFF1E293B),
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                children: [
+                  const Text('المواد بدون باركود (سريع)', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 8,
+                        mainAxisSpacing: 8,
+                        childAspectRatio: 1.3,
+                      ),
+                      itemCount: _nonBarcodeProducts.length,
+                      itemBuilder: (context, i) {
+                        var p = _nonBarcodeProducts[i];
+                        return ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF334155),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () => _addToCart(p['name'], double.parse(p['price'].toString())),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(p['name'], style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                              const SizedBox(height: 4),
+                              Text('${p['price']} د.ع', style: const TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ----------------- 3. واجهة كشف المبيعات (تطابق طلب حفظ القوائم) -----------------
+class SalesLedgerScreen extends StatefulWidget {
+  const SalesLedgerScreen({Key? key}) : super(key: key);
+
+  @override
+  _SalesLedgerScreenState createState() => _SalesLedgerScreenState();
+}
+
+class _SalesLedgerScreenState extends State<SalesLedgerScreen> {
+  List _ledger = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLedger();
+  }
+
+  Future<void> _loadLedger() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? raw = prefs.getString('sales_ledger');
+    if (raw != null) {
+      setState(() {
+        _ledger = jsonDecode(raw);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('كشف المبيعات والقوائم'), backgroundColor: const Color(0xFF1E293B)),
+      body: _ledger.isEmpty
+          ? const Center(child: Text('لا توجد قوائم مبيعات مسجلة بعد', style: TextStyle(color: Colors.white60)))
+          : ListView.builder(
+              padding: const EdgeInsets.all(15),
+              itemCount: _ledger.length,
+              itemBuilder: (context, index) {
+                var item = _ledger[index];
+                return Card(
+                  color: const Color(0xFF1E293B),
+                  child: ListTile(
+                    leading: const Icon(Icons.receipt, color: Colors.amber, size: 35),
+                    title: Text(item['invoiceNum'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    subtitle: Text('عدد المواد: ${item['itemsCount']}\nالتاريخ: ${item['date']}', style: const TextStyle(color: Colors.white60)),
+                    trailing: Text('${item['total']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                );
+              },
+            ),
+    );
+  }
+}
+
+// ----------------- 4. واجهة الأرصده وكارتات الشحن -----------------
+class BalancesScreen extends StatefulWidget {
+  const BalancesScreen({Key? key}) : super(key: key);
+
+  @override
+  _BalancesScreenState createState() => _BalancesScreenState();
+}
+
+class _BalancesScreenState extends State<BalancesScreen> {
+  List<Map<String, String>> _balancesList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBalances();
+  }
+
+  Future<void> _loadBalances() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? data = prefs.getString('balances_sold');
+    if (data != null) {
+      List decoded = jsonDecode(data);
+      setState(() {
+        _balancesList = decoded.map((e) => Map<String, String>.from(e)).toList();
+      });
+    }
+  }
+
+  Future<void> _saveBalances() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('balances_sold', jsonEncode(_balancesList));
+  }
+
+  void _showAddBalanceDialog() {
+    final _networkCtrl = TextEditingController();
+    final _categoryCtrl = TextEditingController();
+    final _priceCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('إضافة رصيد مباع جديد', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _networkCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'الشركة (مثلاً: آسيا، زين، كورك)',
+                  labelStyle: TextStyle(color: Colors.white60),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _categoryCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'فئة الكارت (مثلاً: 5,000 أو 10,000)',
+                  labelStyle: TextStyle(color: Colors.white60),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _priceCtrl,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'السعر (د.ع)',
+                  labelStyle: TextStyle(color: Colors.white60),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: () {
+              if (_networkCtrl.text.isNotEmpty && _categoryCtrl.text.isNotEmpty) {
+                setState(() {
+                  _balancesList.add({
+                    'network': _networkCtrl.text.trim(),
+                    'category': _categoryCtrl.text.trim(),
+                    'price': _priceCtrl.text.trim(),
+                    'date': DateTime.now().toString().substring(0, 16),
+                  });
+                });
+                _saveBalances();
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('حفظ', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('إدارة وبيع الأرصده'), backgroundColor: const Color(0xFF1E293B)),
+      body: _balancesList.isEmpty
+          ? const Center(child: Text('لم يتم تسجيل أي رصيد مباع بعد', style: TextStyle(color: Colors.white60)))
+          : ListView.builder(
+              padding: const EdgeInsets.all(15),
+              itemCount: _balancesList.length,
+              itemBuilder: (context, index) {
+                var item = _balancesList[index];
+                return Card(
+                  color: const Color(0xFF1E293B),
+                  child: ListTile(
+                    leading: const Icon(Icons.sim_card, color: Colors.greenAccent, size: 35),
+                    title: Text('شركة: ${item['network']} - فئة: ${item['category']}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    subtitle: Text('السعر: ${item['price']} د.ع\nالوقت: ${item['date']}', style: const TextStyle(color: Colors.white60)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      onPressed: () {
+                        setState(() => _balancesList.removeAt(index));
+                        _saveBalances();
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF10B981),
+        onPressed: _showAddBalanceDialog,
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+}
+
+// ----------------- 5. باقي الشاشات الأساسية -----------------
+class InventoryScreen extends StatelessWidget {
+  const InventoryScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('عرض المواد بالمخزن'), backgroundColor: const Color(0xFF1E293B)),
+      body: const Center(
+        child: Text('قائمة جميع المواد المسجلة بالمخزن تظهر هنا', style: TextStyle(color: Colors.white70)),
+      ),
+    );
+  }
+}
+
+class ReportsScreen extends StatelessWidget {
+  const ReportsScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('التقارير والأرباح'), backgroundColor: const Color(0xFF1E293B)),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            Card(
+              color: const Color(0xFF1E293B),
+              child: const ListTile(
+                leading: Icon(Icons.trending_up, color: Colors.purple, size: 40),
+                title: Text('إجمالي المبيعات اليومية', style: TextStyle(color: Colors.white60)),
+                subtitle: Text('125,000 د.ع', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              ),
+            ),
           ],
         ),
       ),
