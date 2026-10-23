@@ -1,7 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- تم إضافة صلاحية الإنترنت بنجاح لضمان عمل إشعارات التليجرام والسحاب -->
+    <!-- صلاحيات الإنترنت والكاميرا لتشغيل النظام والماسح الضوئي -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
 
     <application
         android:label="نظام المبيعات والمخازن"
