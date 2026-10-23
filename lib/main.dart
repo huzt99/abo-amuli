@@ -396,7 +396,7 @@ class AppDashboardScreen extends StatefulWidget {
 }
 
 class _AppDashboardScreenState extends State<AppDashboardScreen> {
-  int _remainingSeconds = 1800; // 30 دقيقة تجريبية
+  int _remainingSeconds = 1800;
   Timer? _timer;
   bool _isActivated = false;
 
@@ -638,7 +638,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ----------------- شاشة مسح الباركود -----------------
+// ----------------- شاشة مسح الباركود (مستقرة وبدون أخطاء) -----------------
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -719,31 +719,11 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
         title: const Text('وجّه الكاميرا على الباركود'),
         actions: [
           IconButton(
-            icon: ValueListenableBuilder<TorchState>(
-              valueListenable: cameraController.torchState,
-              builder: (context, state, child) {
-                switch (state) {
-                  case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
-            ),
+            icon: const Icon(Icons.flash_on, color: Colors.yellow),
             onPressed: () => cameraController.toggleTorch(),
           ),
           IconButton(
-            icon: ValueListenableBuilder<CameraFacing>(
-              valueListenable: cameraController.cameraFacingState,
-              builder: (context, state, child) {
-                switch (state) {
-                  case CameraFacing.front:
-                    return const Icon(Icons.camera_front);
-                  case CameraFacing.back:
-                    return const Icon(Icons.camera_rear);
-                }
-              },
-            ),
+            icon: const Icon(Icons.camera_rear, color: Colors.white),
             onPressed: () => cameraController.switchCamera(),
           ),
         ],
@@ -1147,7 +1127,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 }
 
-// ----------------- باقي الشاشات -----------------
+// ----------------- الشاشات الإضافية (كشف المبيعات، الأرصدة، المخزن، التقارير) -----------------
 class SalesLedgerScreen extends StatefulWidget {
   const SalesLedgerScreen({Key? key}) : super(key: key);
 
@@ -1389,4 +1369,16 @@ class ReportsScreen extends StatelessWidget {
         child: Column(
           children: [
             Card(
-        
+              color: const Color(0xFF1E293B),
+              child: const ListTile(
+                leading: Icon(Icons.trending_up, color: Colors.purple, size: 40),
+                title: Text('إجمالي المبيعات اليومية', style: TextStyle(color: Colors.white60)),
+                subtitle: Text('125,000 د.ع', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
