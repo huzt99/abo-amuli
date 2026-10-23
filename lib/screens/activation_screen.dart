@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/activation_service.dart';
-import 'main_screen.dart';
+import 'main_dashboard_screen.dart';
 
 class ActivationScreen extends StatefulWidget {
   const ActivationScreen({Key? key}) : super(key: key);
@@ -53,7 +53,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
     if (result == "success") {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainScreen()),
+        MaterialPageRoute(builder: (context) => MainDashboardScreen()),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -98,7 +98,7 @@ class _ActivationScreenState extends State<ActivationScreen> with SingleTickerPr
               Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const MainScreen()),
+                MaterialPageRoute(builder: (context) => MainDashboardScreen()),
               );
             },
             child: const Text('الدخول للبرنامج (تجربة 3 دقائق)', style: TextStyle(color: Colors.white)),
