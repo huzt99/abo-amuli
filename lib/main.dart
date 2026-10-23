@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -34,7 +34,7 @@ class PosClientApp extends StatelessWidget {
   }
 }
 
-// ----------------- 1. شاشة تسجيل الدخول / التسجيل -----------------
+// ----------------- شاشة تسجيل الدخول / التسجيل -----------------
 class ClientMainScreen extends StatefulWidget {
   const ClientMainScreen({Key? key}) : super(key: key);
 
@@ -331,7 +331,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   }
 }
 
-// ----------------- 2. الشاشة الرئيسية -----------------
+// ----------------- الشاشة الرئيسية -----------------
 class AppDashboardScreen extends StatefulWidget {
   const AppDashboardScreen({Key? key}) : super(key: key);
 
@@ -571,7 +571,30 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ----------------- 3. شاشة إضافة مادة مع الكاميرا الحقيقية للباركود -----------------
+// ----------------- شاشة مسح الباركود بالكاميرا الحقيقية -----------------
+class BarcodeScannerView extends StatelessWidget {
+  const BarcodeScannerView({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('وجّه الكاميرا على الباركود')),
+      body: MobileScanner(
+        onDetect: (capture) {
+          final List<Barcode> barcodes = capture.barcodes;
+          for (final barcode in barcodes) {
+            if (barcode.rawValue != null) {
+              Navigator.pop(context, barcode.rawValue);
+              break;
+            }
+          }
+        },
+      ),
+    );
+  }
+}
+
+// ----------------- شاشة إضافة مادة جديدة -----------------
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({Key? key}) : super(key: key);
 
@@ -585,22 +608,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _priceCtrl = TextEditingController();
   final _qtyCtrl = TextEditingController();
 
-  Future<void> _scanBarcodeReal() async {
-    try {
-      String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
-        "#ff6666",
-        "إلغاء",
-        true,
-        ScanMode.BARCODE,
-      );
-      if (barcodeScanRes != '-1') {
-        setState(() {
-          _barcodeCtrl.text = barcodeScanRes;
-        });
-      }
-    } catch (e) {
+  Future<void> _scanBarcode() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BarcodeScannerView()),
+    );
+    if (result != null) {
       setState(() {
-        _barcodeCtrl.text = "ERR_SCAN";
+        _barcodeCtrl.text = result;
       });
     }
   }
@@ -674,7 +689,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                     backgroundColor: const Color(0xFF38BDF8),
                     padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
                   ),
-                  onPressed: _scanBarcodeReal,
+                  onPressed: _scanBarcode,
                   icon: const Icon(Icons.camera_alt, color: Colors.black),
                   label: const Text('كاميرا', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                 ),
@@ -723,7 +738,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 }
 
-// ----------------- 4. واجهة نقطة البيع الاحترافية مع الكاميرا للباركود -----------------
+// ----------------- نقطة البيع POS -----------------
 class PosScreen extends StatefulWidget {
   const PosScreen({Key? key}) : super(key: key);
 
@@ -746,9 +761,7 @@ class _PosScreenState extends State<PosScreen> {
     final prefs = await SharedPreferences.getInstance();
     String? raw = prefs.getString('saved_products');
     if (raw != null) {
-      setState(() {
-        _products = jsonDecode(raw);
-      });
+      setState(() => _products = jsonDecode(raw));
     } else {
       setState(() {
         _products = [
@@ -787,35 +800,26 @@ class _PosScreenState extends State<PosScreen> {
     _totalAmount = sum;
   }
 
-  Future<void> _scanAndSellReal() async {
-    try {
-      String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
-        "#ff6666",
-        "إلغاء",
-        true,
-        ScanMode.BARCODE,
+  Future<void> _scanAndSell() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const BarcodeScannerView()),
+    );
+
+    if (result != null && result.isNotEmpty) {
+      var found = _products.firstWhere(
+        (p) => p['barcode'] == result,
+        orElse: () => null,
       );
 
-      if (barcodeScanRes != '-1' && barcodeScanRes.isNotEmpty) {
-        // بحث عن المادة بالباركود أو إضافتها كمادة باركود مسجلة
-        var found = _products.firstWhere(
-          (p) => p['barcode'] == barcodeScanRes,
-          orElse: () => null,
-        );
-
-        if (found != null) {
-          _addToCart(found['name'], double.parse(found['price'].toString()));
-        } else {
-          _addToCart("مادة باركود: $barcodeScanRes", 1500.0);
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم قراءة الباركود بنجاح وإضافته للسلة! ($barcodeScanRes)')),
-        );
+      if (found != null) {
+        _addToCart(found['name'], double.parse(found['price'].toString()));
+      } else {
+        _addToCart("مادة باركود: $result", 1500.0);
       }
-    } catch (e) {
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ أثناء مسح الباركود!')),
+        SnackBar(content: Text('تمت إضافة الباركود ($result) للسلة بنجاح!')),
       );
     }
   }
@@ -862,14 +866,13 @@ class _PosScreenState extends State<PosScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt, color: Colors.cyanAccent, size: 28),
-            onPressed: _scanAndSellReal,
+            onPressed: _scanAndSell,
             tooltip: 'مسح باركود الكاميرا',
           ),
         ],
       ),
       body: Row(
         children: [
-          // الجانب الأيسر: سلة المبيعات
           Expanded(
             flex: 5,
             child: Container(
@@ -926,7 +929,6 @@ class _PosScreenState extends State<PosScreen> {
             ),
           ),
           const VerticalDivider(width: 1, color: Colors.white24),
-          // الجانب الأيمن: المواد السريعة (بدون باركود) ومربعات مجهزة
           Expanded(
             flex: 6,
             child: Container(
@@ -975,7 +977,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 }
 
-// ----------------- 5. باقي الشاشات (كشف المبيعات، الأرصده، المخزن، التقارير) -----------------
+// ----------------- باقي الشاشات -----------------
 class SalesLedgerScreen extends StatefulWidget {
   const SalesLedgerScreen({Key? key}) : super(key: key);
 
@@ -1209,24 +1211,4 @@ class ReportsScreen extends StatelessWidget {
   const ReportsScreen({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('التقارير والأرباح'), backgroundColor: const Color(0xFF1E293B)),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            Card(
-              color: const Color(0xFF1E293B),
-              child: const ListTile(
-                leading: Icon(Icons.trending_up, color: Colors.purple, size: 40),
-                title: Text('إجمالي المبيعات اليومية', style: TextStyle(color: Colors.white60)),
-                subtitle: Text('125,000 د.ع', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
