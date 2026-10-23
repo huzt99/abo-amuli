@@ -85,7 +85,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   }
 }
 
-// ================= تسجيل الدخول مع التحقق السحابي =================
+// ================= تسجيل الدخول مع التحقق السحابي الدقيق =================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
 
@@ -114,48 +114,46 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
 
     setState(() => _isLoading = true);
 
+    bool isCloudActivated = false;
+
     try {
       final getResp = await http.get(
         Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
         headers: {"X-Master-Key": masterKey},
       );
 
-      bool isCloudActivated = false;
       if (getResp.statusCode == 200) {
         var decoded = jsonDecode(getResp.body);
         if (decoded != null && decoded['record'] != null) {
           var record = decoded['record'];
           List activatedList = record['activated_users'] ?? [];
+          // التحقق مما إذا كان اسم المستخدم موجوداً في قائمة المفعلين سحابياً
           if (activatedList.contains(username)) {
             isCloudActivated = true;
           }
         }
       }
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_logged_in', true);
-      await prefs.setString('username', username);
-      if (isCloudActivated || username == "admin") {
-        await prefs.setBool('is_activated', true);
-      }
-
-      setState(() => _isLoading = false);
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
-      );
     } catch (e) {
-      setState(() => _isLoading = false);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_logged_in', true);
-      await prefs.setString('username', username);
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
-      );
+      // تجاوز أخطاء الاتصال المؤقتة
     }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_in', true);
+    await prefs.setString('username', username);
+
+    // إذا كان الحساب مفعلاً بالسحابة أو حساب المدير (admin) أو اسمك، يتم تفعيله مباشرة
+    if (isCloudActivated || username == "admin" || username == "ابو مؤمل") {
+      await prefs.setBool('is_activated', true);
+    } else {
+      await prefs.setBool('is_activated', false);
+    }
+
+    setState(() => _isLoading = false);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
+    );
   }
 
   @override
@@ -174,7 +172,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
             controller: _userCtrl,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: 'اليوزر / الإيميل / الهاتف',
+              labelText: 'اليوزر (اسم المستخدم)',
               labelStyle: const TextStyle(color: Colors.white60),
               filled: true,
               fillColor: const Color(0xFF1E293B),
@@ -638,7 +636,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ----------------- شاشة مسح الباركود (مستقرة وبدون أخطاء) -----------------
+// ----------------- شاشة مسح الباركود (محسنة بمعالجة الأخطاء لمنع الشاشة السوداء) -----------------
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -657,6 +655,7 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
     cameraController = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
+      torchEnabled: false,
     );
     _checkPermissionAndStart();
   }
@@ -730,6 +729,33 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
       ),
       body: MobileScanner(
         controller: cameraController,
+        errorBuilder: (context, error, child) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.redAccent, size: 50),
+                  const SizedBox(height: 10),
+                  Text(
+                    'تعذر تشغيل الكاميرا:\n${error.errorCode}',
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8)),
+                    onPressed: () {
+                      setState(() {});
+                    },
+                    child: const Text('إعادة المحاولة', style: TextStyle(color: Colors.black)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
         onDetect: (capture) {
           final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
@@ -1127,7 +1153,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 }
 
-// ----------------- الشاشات الإضافية (كشف المبيعات، الأرصدة، المخزن، التقارير) -----------------
+// ----------------- الشاشات الإضافية -----------------
 class SalesLedgerScreen extends StatefulWidget {
   const SalesLedgerScreen({Key? key}) : super(key: key);
 
@@ -1361,24 +1387,4 @@ class ReportsScreen extends StatelessWidget {
   const ReportsScreen({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('التقارير والأرباح'), backgroundColor: const Color(0xFF1E293B)),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            Card(
-              color: const Color(0xFF1E293B),
-              child: const ListTile(
-                leading: Icon(Icons.trending_up, color: Colors.purple, size: 40),
-                title: Text('إجمالي المبيعات اليومية', style: TextStyle(color: Colors.white60)),
-                subtitle: Text('125,000 د.ع', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+ 
