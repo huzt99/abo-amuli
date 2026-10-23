@@ -85,7 +85,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   }
 }
 
-// ================= تسجيل الدخول مع التحقق السحابي الدقيق =================
+// ================= تسجيل الدخول والتحقق السحابي =================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
 
@@ -127,21 +127,18 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
         if (decoded != null && decoded['record'] != null) {
           var record = decoded['record'];
           List activatedList = record['activated_users'] ?? [];
-          // التحقق مما إذا كان اسم المستخدم موجوداً في قائمة المفعلين سحابياً
           if (activatedList.contains(username)) {
             isCloudActivated = true;
           }
         }
       }
-    } catch (e) {
-      // تجاوز أخطاء الاتصال المؤقتة
-    }
+    } catch (e) {}
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', username);
 
-    // إذا كان الحساب مفعلاً بالسحابة أو حساب المدير (admin) أو اسمك، يتم تفعيله مباشرة
+    // إذا كان مفعلاً بالسحابة أو حساب المطور، يبقى مفعلاً حتى بعد إعادة التثبيت
     if (isCloudActivated || username == "admin" || username == "ابو مؤمل") {
       await prefs.setBool('is_activated', true);
     } else {
@@ -210,7 +207,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   }
 }
 
-// ================= تسجيل حساب جديد وإرسال الطلب للسحابة =================
+// ================= تسجيل حساب جديد =================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
 
@@ -464,9 +461,9 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
                       onPressed: () async {
                         final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20نسخة%20POS");
-                        if (await canLaunchUrl(whatsappUrl)) {
+                        try {
                           await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-                        }
+                        } catch (e) {}
                       },
                       icon: const Icon(Icons.chat, color: Colors.white, size: 18),
                       label: const Text('واتساب', style: TextStyle(color: Colors.white)),
@@ -478,9 +475,9 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
                       onPressed: () async {
                         final telegramUrl = Uri.parse("https://t.me/huzt92");
-                        if (await canLaunchUrl(telegramUrl)) {
+                        try {
                           await launchUrl(telegramUrl, mode: LaunchMode.externalApplication);
-                        }
+                        } catch (e) {}
                       },
                       icon: const Icon(Icons.telegram, color: Colors.white, size: 18),
                       label: const Text('تليجرام', style: TextStyle(color: Colors.white)),
@@ -513,11 +510,46 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               String? correctCode = prefs.getString('activation_code');
+              String? currentUsername = prefs.getString('username') ?? "user";
 
               if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
                 await prefs.setBool('is_activated', true);
                 setState(() => _isActivated = true);
                 _timer?.cancel();
+
+                // تحديث السحابة وإضافة اليوزر لقائمة المفعلين لكي لا يطلب تفعيل مرة أخرى عند إعادة التثبيت
+                try {
+                  const String binId = "6ada49aaac6210605a49b2cb";
+                  const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
+
+                  final getResp = await http.get(
+                    Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
+                    headers: {"X-Master-Key": masterKey},
+                  );
+
+                  if (getResp.statusCode == 200) {
+                    var decoded = jsonDecode(getResp.body);
+                    if (decoded != null && decoded['record'] != null) {
+                      Map<String, dynamic> data = Map<String, dynamic>.from(decoded['record']);
+                      data['activated_users'] ??= [];
+                      List activatedList = List.from(data['activated_users']);
+                      if (!activatedList.contains(currentUsername)) {
+                        activatedList.add(currentUsername);
+                        data['activated_users'] = activatedList;
+
+                        await http.put(
+                          Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
+                          headers: {
+                            "Content-Type": "application/json",
+                            "X-Master-Key": masterKey,
+                          },
+                          body: jsonEncode(data),
+                        );
+                      }
+                    }
+                  }
+                } catch (e) {}
+
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح! 👑')),
@@ -636,7 +668,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ----------------- شاشة مسح الباركود (محسنة بمعالجة الأخطاء لمنع الشاشة السوداء) -----------------
+// ----------------- شاشة مسح الباركود -----------------
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -742,14 +774,6 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
                     'تعذر تشغيل الكاميرا:\n${error.errorCode}',
                     style: const TextStyle(color: Colors.white, fontSize: 14),
                     textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8)),
-                    onPressed: () {
-                      setState(() {});
-                    },
-                    child: const Text('إعادة المحاولة', style: TextStyle(color: Colors.black)),
                   ),
                 ],
               ),
@@ -1362,29 +1386,4 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('عرض المواد بالمخزن'), backgroundColor: const Color(0xFF1E293B)),
       body: _products.isEmpty
-          ? const Center(child: Text('لا توجد مواد مخزنة مسجلة بعد', style: TextStyle(color: Colors.white60)))
-          : ListView.builder(
-              padding: const EdgeInsets.all(15),
-              itemCount: _products.length,
-              itemBuilder: (context, index) {
-                var p = _products[index];
-                return Card(
-                  color: const Color(0xFF1E293B),
-                  child: ListTile(
-                    leading: const Icon(Icons.inventory_2, color: Colors.teal, size: 35),
-                    title: Text(p['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    subtitle: Text('الباركود: ${p['barcode'].isEmpty ? "بدون باركود" : p['barcode']}\nالكمية: ${p['qty']}', style: const TextStyle(color: Colors.white60)),
-                    trailing: Text('${p['price']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-                  ),
-                );
-              },
-            ),
-    );
-  }
-}
-
-class ReportsScreen extends StatelessWidget {
-  const ReportsScreen({Key? key}) : super(key: key);
-
-  @override
- 
+          ? const Center(child: Text('لا توجد مواد مخزنة مسجلة بعد', style: TextStyle(color: Colors.white60)
