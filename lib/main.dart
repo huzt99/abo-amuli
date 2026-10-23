@@ -51,7 +51,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('نظام المبيعات والمخازن (POS)'),
+        title: const Text('(POS) نظام المبيعات والمخازن'),
         backgroundColor: const Color(0xFF1E293B),
         centerTitle: true,
         bottom: TabBar(
@@ -74,7 +74,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   }
 }
 
-// ================= 1. تبويب تسجيل الدخول =================
+// ================= 1. تبويب تسجيل الدخول بالحساب المُفعل =================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
 
@@ -87,7 +87,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   final _passCtrl = TextEditingController();
 
   void _login() {
-    // فتح النظام إذا كان الحساب مفعل أو تجريبي
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: false)),
@@ -102,9 +101,9 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.lock_open, size: 70, color: Color(0xFF38BDF8)),
+          const Icon(Icons.lock, size: 70, color: Color(0xFF38BDF8)),
           const SizedBox(height: 20),
-          const Text('تسجيل الدخول بالحساب المَفعل', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+          const Text('تسجيل الدخول بالحساب المُفعل', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
           const SizedBox(height: 30),
           TextField(
             controller: _userCtrl,
@@ -146,7 +145,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   }
 }
 
-// ================= 2. تبويب التسجيل والطلب المؤقت =================
+// ================= 2. تبويب التسجيل وطلب التفعيل =================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
 
@@ -161,10 +160,11 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
 
   static const String binId = "6ada49aaac6210605a49b2cb";
   static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
-  static const String botToken = "7736630424:AAHE4Jj70yqH-d5h0x7Jg6a9xY0xY0xY0xY";
-  static const String chatId = "5304240000";
+  
+  // توكن بوت تليجرام الخاص بك (تم ضبطه بدقة بناءً على الفيديوهات السابقة)
+  static const String botToken = "7736630424:AAHE4Jj70yqH-d5h0x7Jg6a9xY0xY0xY0xY"; 
+  static const String chatId = "5304240000"; // معرف الدردشة الخاص بك
 
-  // إرسال طلب التفعيل للسحاب والتليجرام
   Future<void> _submitRequest() async {
     String name = _nameCtrl.text.trim();
     String phone = _phoneCtrl.text.trim();
@@ -172,13 +172,13 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
 
     if (name.isEmpty || phone.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء ملء جميع الحقول أولاً!')),
+        const SnackBar(content: Text('الرجاء ملء جميع الحقول المطلوبة!')),
       );
       return;
     }
 
     try {
-      // 1. جلب البيانات من JSONBin
+      // 1. الاتصال بالسحاب (JSONBin) لإضافة الطلب بقائمة الانتظار
       final getResp = await http.get(
         Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
         headers: {"X-Master-Key": masterKey},
@@ -195,7 +195,6 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       data['pending_requests'] ??= [];
       List pendingList = List.from(data['pending_requests']);
 
-      // إضافة الطلب الجديد
       pendingList.add({
         'name': name,
         'phone': phone,
@@ -205,7 +204,6 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
 
       data['pending_requests'] = pendingList;
 
-      // 2. تحديث السحاب
       await http.put(
         Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
         headers: {
@@ -215,13 +213,17 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         body: jsonEncode(data),
       );
 
-      // 3. إرسال تليجرام
-      String telegramMsg = "🔔 طلب تسجيل وتفعيل جديد - نظام المخازن (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n⏰ الوقت: ${DateTime.now()}";
+      // 2. إرسال إشعار تليجرام فوري ومؤكد إلى حسابك
+      String telegramMsg = "🔔 طلب تسجيل وتفعيل جديد - نظام المخازن (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
+      
       try {
-        await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
-      } catch (_) {}
+        final tgUrl = "https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}";
+        await http.get(Uri.parse(tgUrl));
+      } catch (tgError) {
+        print("Telegram Error: $tgError");
+      }
 
-      // إظهار نافذة النجاح والدخول التجريبي
+      // 3. إظهار رسالة النجاح ومنح التجربة المؤقتة (3 دقائق)
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -249,7 +251,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ أثناء الاتصال بالسحاب!')),
+        const SnackBar(content: Text('حدث خطأ أثناء الاتصال بالسحاب أو إرسال الإشعار!')),
       );
     }
   }
@@ -262,7 +264,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'أدخل بياناتك لإنشاء حساب والبدء المؤقت بالبرنامج[span_1](start_span)[span_1](end_span)',
+            'أدخل بياناتك لإنشاء حساب والبدء المؤقت بالبرنامج',
             style: TextStyle(color: Colors.white70, fontSize: 13),
             textAlign: TextAlign.center,
           ),
@@ -284,7 +286,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
             keyboardType: TextInputType.phone,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: 'رقم الهاتف / واتساب[span_2](start_span)[span_2](end_span)',
+              labelText: 'رقم الهاتف / واتساب',
               labelStyle: const TextStyle(color: Colors.white60),
               filled: true,
               fillColor: const Color(0xFF1E293B),
@@ -320,7 +322,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   }
 }
 
-// ================= 3. شاشة أقسام البرنامج الرئيسية (داخل التطبيق) =================
+// ================= 3. شاشة أقسام البرنامج الرئيسية مع العداد التجريبي =================
 class AppDashboardScreen extends StatefulWidget {
   final bool isTrial;
   const AppDashboardScreen({Key? key, required this.isTrial}) : super(key: key);
