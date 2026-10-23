@@ -1,8 +1,28 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- صلاحيات الإنترنت والكاميرا لتشغيل النظام والماسح الضوئي -->
+    <!-- أذونات الإنترنت والاتصال الخارجي -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+
+    <!-- هذا هو الحل الجذري لأزرار الواتساب والتلجرام والإنترنت -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="whatsapp" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tg" />
+        </intent>
+    </queries>
 
     <application
         android:label="نظام المبيعات والمخازن"
@@ -18,12 +38,16 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
             <meta-data
-              android:name="flutterEmbedding"
-              android:value="2" />
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:theme="@style/NormalTheme"
+              android:value="@string/io.flutter.embedding.android.NormalTheme" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
     </application>
 </manifest>
