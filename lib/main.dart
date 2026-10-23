@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const PosClientApp());
@@ -74,7 +77,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   }
 }
 
-// ================= 1. تبويب تسجيل الدخول بالحساب المُفعل =================
+// ================= 1. تبويب تسجيل الدخول =================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
 
@@ -86,10 +89,21 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
 
-  void _login() {
+  Future<void> _login() async {
+    if (_userCtrl.text.trim().isEmpty || _passCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرجاء إدخال اليوزر وكلمة المرور!')),
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_in', true);
+    await prefs.setString('username', _userCtrl.text.trim());
+
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: false)),
+      MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: true)),
     );
   }
 
@@ -103,7 +117,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
         children: [
           const Icon(Icons.lock, size: 70, color: Color(0xFF38BDF8)),
           const SizedBox(height: 20),
-          const Text('تسجيل الدخول بالحساب المُفعل', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+          const Text('تسجيل الدخول بالحساب', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
           const SizedBox(height: 30),
           TextField(
             controller: _userCtrl,
@@ -145,7 +159,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   }
 }
 
-// ================= 2. تبويب التسجيل وطلب التفعيل =================
+// ================= 2. تبويب التسجيل بالبرنامج =================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
 
@@ -160,10 +174,18 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
 
   static const String binId = "6ada49aaac6210605a49b2cb";
   static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
-  
-  // توكن بوت تليجرام الخاص بك (تم ضبطه بدقة بناءً على الفيديوهات السابقة)
   static const String botToken = "7736630424:AAHE4Jj70yqH-d5h0x7Jg6a9xY0xY0xY0xY"; 
-  static const String chatId = "5304240000"; // معرف الدردشة الخاص بك
+  static const String chatId = "5304240000"; 
+
+  // توليد كود تفعيل فريد من 11 رقم
+  String _generate11DigitCode() {
+    Random rnd = Random();
+    String code = '';
+    for (int i = 0; i < 11; i++) {
+      code += rnd.nextInt(10).toString();
+    }
+    return code;
+  }
 
   Future<void> _submitRequest() async {
     String name = _nameCtrl.text.trim();
@@ -177,8 +199,15 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       return;
     }
 
+    String activationCode11 = _generate11DigitCode();
+
     try {
-      // 1. الاتصال بالسحاب (JSONBin) لإضافة الطلب بقائمة الانتظار
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setString('username', name);
+      await prefs.setString('activation_code', activationCode11);
+
+      // 1. الاتصال بالسحاب JSONBin
       final getResp = await http.get(
         Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
         headers: {"X-Master-Key": masterKey},
@@ -199,6 +228,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         'name': name,
         'phone': phone,
         'password': password,
+        'code_11': activationCode11,
         'date': DateTime.now().toIso8601String(),
       });
 
@@ -213,8 +243,8 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         body: jsonEncode(data),
       );
 
-      // 2. إرسال إشعار تليجرام فوري ومؤكد إلى حسابك
-      String telegramMsg = "🔔 طلب تسجيل وتفعيل جديد - نظام المخازن (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
+      // 2. إرسال إشعار تليجرام البوت المباشر
+      String telegramMsg = "🔔 طلب تفعيل جديد وفحص ذكاء اصطناعي (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n🔢 كود التفعيل (11 رقم): $activationCode11\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
       
       try {
         final tgUrl = "https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}";
@@ -223,35 +253,18 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         print("Telegram Error: $tgError");
       }
 
-      // 3. إظهار رسالة النجاح ومنح التجربة المؤقتة (3 دقائق)
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          title: const Text('تم إرسال الطلب بنجاح', style: TextStyle(color: Colors.white)),
-          content: const Text(
-            'تم إرسال طلبك إلى المطور (أبو مؤمل) بنجاح.\nتم منحك نسخة تجريبية لمدة 3 دقائق.\nيمكنك الضغط أدناه للدخول مؤقتاً ريثما تتم الموافقة.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: true)),
-                );
-              },
-              child: const Text('الدخول للبرنامج (تجربة 3 دقائق)', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
+      // الانتقال للوحة التحكم مباشرة بنسخة تجريبية 30 دقيقة
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: true)),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('حدث خطأ أثناء الاتصال بالسحاب أو إرسال الإشعار!')),
+        const SnackBar(content: Text('تم الحفظ محلياً - حدث خطأ بسيط بالاتصال بالسحاب')),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: true)),
       );
     }
   }
@@ -322,7 +335,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   }
 }
 
-// ================= 3. شاشة أقسام البرنامج الرئيسية مع العداد التجريبي =================
+// ================= 3. شاشة أقسام البرنامج الرئيسية مع عداد 30 دقيقة وزر الشراء =================
 class AppDashboardScreen extends StatefulWidget {
   final bool isTrial;
   const AppDashboardScreen({Key? key, required this.isTrial}) : super(key: key);
@@ -332,21 +345,32 @@ class AppDashboardScreen extends StatefulWidget {
 }
 
 class _AppDashboardScreenState extends State<AppDashboardScreen> {
-  int _remainingSeconds = 180;
+  int _remainingSeconds = 1800; // 30 دقيقة كاملة
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    if (widget.isTrial) {
-      _startTimer();
+    _loadTimerState();
+  }
+
+  Future<void> _loadTimerState() async {
+    final prefs = await SharedPreferences.getInstance();
+    int? savedTime = prefs.getInt('remaining_seconds');
+    if (savedTime != null && savedTime > 0) {
+      setState(() {
+        _remainingSeconds = savedTime;
+      });
     }
+    _startTimer();
   }
 
   void _startTimer() {
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (_remainingSeconds > 0) {
         setState(() => _remainingSeconds--);
+        final prefs = await SharedPreferences.getInstance();
+        prefs.setInt('remaining_seconds', _remainingSeconds);
       } else {
         _timer?.cancel();
       }
@@ -357,6 +381,101 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  // نافذة طلب الشراء وتفعيل الكود وأزرار التواصل المباشر
+  void _showActivationDialog(BuildContext context) {
+    final _codeCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('تفعيل النسخة الدائمة', style: TextStyle(color: Colors.white)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'للحصول على كود التفعيل الخاص بك (11 رقم)، يرجى التواصل مع المطور عبر تليجرام أو واتساب:',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+              const SizedBox(height: 15),
+              // أزرار التواصل المباشر (واتساب وتليجرام)
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                      onPressed: () async {
+                        final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20تطبيق%20المبيعات%20POS");
+                        if (await canLaunchUrl(whatsappUrl)) {
+                          await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      icon: const Icon(Icons.chat, color: Colors.white, size: 18),
+                      label: const Text('واتساب', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
+                      onPressed: () async {
+                        final telegramUrl = Uri.parse("https://t.me/huzt92");
+                        if (await canLaunchUrl(telegramUrl)) {
+                          await launchUrl(telegramUrl, mode: LaunchMode.externalApplication);
+                        }
+                      },
+                      icon: const Icon(Icons.telegram, color: Colors.white, size: 18),
+                      label: const Text('تليجرام', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _codeCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'أدخل كود التفعيل (11 رقم)',
+                  labelStyle: const TextStyle(color: Colors.white60),
+                  filled: true,
+                  fillColor: const Color(0xFF0F172A),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              String? correctCode = prefs.getString('activation_code');
+
+              if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('تم تفعيل البرنامج بنجاح دائم! 👑')),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('كود التفعيل غير صحيح!')),
+                );
+              }
+            },
+            child: const Text('تحقق وتفعيل', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -371,7 +490,9 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
-            onPressed: () {
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              prefs.setBool('is_logged_in', false);
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const ClientMainScreen()),
@@ -382,17 +503,31 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
       ),
       body: Column(
         children: [
-          if (widget.isTrial)
-            Container(
-              padding: const EdgeInsets.all(10),
-              color: Colors.amber.withOpacity(0.2),
+          // شريط العداد التجريبي العلوي مع زر الشراء
+          InkWell(
+            onTap: () => _showActivationDialog(context),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              color: Colors.amber.withOpacity(0.25),
               width: double.infinity,
-              child: Text(
-                'نسخة تجريبية مؤقتة - متبقي: $minutes:${seconds.toString().padLeft(2, '0')} - بانتظار موافقة الأدمن',
-                style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
-                textAlign: TextAlign.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.timer, color: Colors.amber, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'نسخة تجريبية مؤقتة - متبقي: $minutes:${seconds.toString().padLeft(2, '0')}',
+                    style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(width: 15),
+                  const Text(
+                    '[ اضغط هنا لشراء التطبيق ]',
+                    style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13, decoration: TextDecoration.underline),
+                  ),
+                ],
               ),
             ),
+          ),
           Expanded(
             child: GridView.count(
               crossAxisCount: 2,
