@@ -138,7 +138,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', username);
 
-    // إذا كان مفعلاً بالسحابة أو حساب المطور، يبقى مفعلاً حتى بعد إعادة التثبيت
     if (isCloudActivated || username == "admin" || username == "ابو مؤمل") {
       await prefs.setBool('is_activated', true);
     } else {
@@ -517,7 +516,6 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 setState(() => _isActivated = true);
                 _timer?.cancel();
 
-                // تحديث السحابة وإضافة اليوزر لقائمة المفعلين لكي لا يطلب تفعيل مرة أخرى عند إعادة التثبيت
                 try {
                   const String binId = "6ada49aaac6210605a49b2cb";
                   const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
@@ -1386,4 +1384,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('عرض المواد بالمخزن'), backgroundColor: const Color(0xFF1E293B)),
       body: _products.isEmpty
-          ? const Center(child: Text('لا توجد مواد مخزنة مسجلة بعد', style: TextStyle(color: Colors.white60)
+          ? const Center(child: Text('لا توجد مواد مخزنة مسجلة بعد', style: TextStyle(color: Colors.white60)))
+          : ListView.builder(
+              padding: const EdgeInsets.all(15),
+              itemCount: _products.length,
+              itemBuilder: (context, index) {
+                va
