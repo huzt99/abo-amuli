@@ -1,6 +1,7 @@
 name: pos_client
-description: "A new Flutter project for POS client."
+description: "نظام المبيعات والمخازن الاحترافي (POS) - تطبيق الزبون"
 publish_to: 'none'
+
 version: 1.0.0+1
 
 environment:
@@ -9,9 +10,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # المكتبات الأساسية لعمل التطبيق والاتصالات
   http: ^1.2.0
   shared_preferences: ^2.2.2
-  url_launcher: ^6.2.2
+  url_launcher: ^6.2.4
+
+  # مكتبة قراءة الباركود باستخدام كاميرا الموبايل الحقيقية
+  flutter_barcode_scanner: ^2.0.0
+
+  # أيقونات أندرويد وآيفون القياسية
+  cupertino_icons: ^1.0.6
 
 dev_dependencies:
   flutter_test:
