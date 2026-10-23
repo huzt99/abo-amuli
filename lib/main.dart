@@ -580,6 +580,10 @@ class BarcodeScannerView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('وجّه الكاميرا على الباركود')),
       body: MobileScanner(
+        controller: MobileScannerController(
+          detectionSpeed: DetectionSpeed.noDuplicates,
+          facing: CameraFacing.back,
+        ),
         onDetect: (capture) {
           final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
