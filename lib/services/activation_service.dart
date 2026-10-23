@@ -13,6 +13,8 @@ class ActivationService {
   static const String whatsappLink = "https://wa.me/9647862597668";
   static const String telegramLink = "https://t.me/huzt92";
 
+  // --- 1. إدارة التفعيل المحلي والمؤقت وإدارة الجلسة ---
+  
   static Future<bool> isLocalActivated() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('is_pos_activated') ?? false;
@@ -21,6 +23,16 @@ class ActivationService {
   static Future<void> setLocalActivated(bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_pos_activated', value);
+  }
+
+  static Future<bool> isAdminLoggedIn() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('is_admin_logged') ?? false;
+  }
+
+  static Future<void> setAdminLoggedIn(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_admin_logged', value);
   }
 
   static Future<void> startTempActivation() async {
@@ -37,6 +49,7 @@ class ActivationService {
     return diff <= (3 * 60 * 1000); // 3 دقائق
   }
 
+  // --- 2. إرسال إشعار فوري إلى التلجرام ---
   static Future<void> sendTelegramNotification(String name, String phone, String password) async {
     try {
       final message = "🔔 *طلب تسجيل وتفعيل جديد - نظام المخازن (POS)*\n\n"
@@ -44,7 +57,7 @@ class ActivationService {
           "📱 *رقم الهاتف:* `$phone`\n"
           "🔑 *الرمز السري:* `$password`\n"
           "⏰ *الوقت:* ${DateTime.now().toString().substring(0, 16)}\n\n"
-          "يرجى فتح تطبيق الأدمن لتأكيد موافقة الحساب.";
+          "يرجى موافقة الحساب ليتمكن الزبون من الدخول نهائياً.";
 
       final url = "https://api.telegram.org/bot$telegramBotToken/sendMessage";
       await http.post(
@@ -61,6 +74,7 @@ class ActivationService {
     }
   }
 
+  // --- 3. التسجيل بالبرنامج ---
   static Future<bool> sendActivationRequest(String name, String phone, String password) async {
     try {
       await startTempActivation();
@@ -113,6 +127,7 @@ class ActivationService {
     }
   }
 
+  // --- 4. فحص التفعيل السحابي وتسجيل الدخول ---
   static Future<bool> checkApprovalStatus(String identifier) async {
     try {
       final response = await http.get(
