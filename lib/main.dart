@@ -115,7 +115,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // فحص السحابة للتأكد من حالة التفعيل والحساب
       final getResp = await http.get(
         Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
         headers: {"X-Master-Key": masterKey},
@@ -126,7 +125,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
         var decoded = jsonDecode(getResp.body);
         if (decoded != null && decoded['record'] != null) {
           var record = decoded['record'];
-          // فحص إذا كان الحساب موجوداً في القوائم المفعلة أو الطلبات السابقة
           List activatedList = record['activated_users'] ?? [];
           if (activatedList.contains(username)) {
             isCloudActivated = true;
@@ -137,7 +135,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('is_logged_in', true);
       await prefs.setString('username', username);
-      // إذا كان مفعلاً بالسحابة أو كود مطور خاص، يبقى مفعلاً حتى بعد إعادة التثبيت
       if (isCloudActivated || username == "admin") {
         await prefs.setBool('is_activated', true);
       }
@@ -150,7 +147,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
       );
     } catch (e) {
       setState(() => _isLoading = false);
-      // الدخول محلياً في حال عدم وجود انترنت إذا كان مسجلاً مسبقاً
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('is_logged_in', true);
       await prefs.setString('username', username);
@@ -642,7 +638,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ----------------- شاشة مسح الباركود (مصححة لحل الشاشة السوداء) -----------------
+// ----------------- شاشة مسح الباركود -----------------
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -758,7 +754,6 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
           final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
             if (barcode.rawValue != null) {
-              // إغلاق الشاشة وإرجاع الباركود المقروء
               Navigator.pop(context, barcode.rawValue);
               break;
             }
@@ -1383,4 +1378,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
 }
 
 class ReportsScreen extends StatelessWidget {
-  co
+  const ReportsScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('التقارير والأرباح'), backgroundColor: const Color(0xFF1E293B)),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          children: [
+            Card(
+        
