@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -33,7 +34,7 @@ class PosClientApp extends StatelessWidget {
   }
 }
 
-// ----------------- الشاشة الأولى: تسجيل الدخول / التسجيل -----------------
+// ----------------- 1. شاشة تسجيل الدخول / التسجيل -----------------
 class ClientMainScreen extends StatefulWidget {
   const ClientMainScreen({Key? key}) : super(key: key);
 
@@ -330,7 +331,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   }
 }
 
-// ----------------- الشاشة الرئيسية (تطابق صورة الواجهة) -----------------
+// ----------------- 2. الشاشة الرئيسية -----------------
 class AppDashboardScreen extends StatefulWidget {
   const AppDashboardScreen({Key? key}) : super(key: key);
 
@@ -570,7 +571,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ----------------- 1. واجهة أضافة مادة (تطابق صورة إضافة المادة) -----------------
+// ----------------- 3. شاشة إضافة مادة مع الكاميرا الحقيقية للباركود -----------------
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({Key? key}) : super(key: key);
 
@@ -583,6 +584,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _barcodeCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   final _qtyCtrl = TextEditingController();
+
+  Future<void> _scanBarcodeReal() async {
+    try {
+      String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
+        "#ff6666",
+        "إلغاء",
+        true,
+        ScanMode.BARCODE,
+      );
+      if (barcodeScanRes != '-1') {
+        setState(() {
+          _barcodeCtrl.text = barcodeScanRes;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _barcodeCtrl.text = "ERR_SCAN";
+      });
+    }
+  }
 
   Future<void> _addProduct() async {
     if (_nameCtrl.text.isEmpty || _priceCtrl.text.isEmpty) {
@@ -601,7 +622,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
       'barcode': _barcodeCtrl.text.trim(),
       'price': double.parse(_priceCtrl.text.trim()),
       'qty': int.tryParse(_qtyCtrl.text.trim()) ?? 1,
-      'hasBarcode': _barcodeCtrl.text.trim().isNotEmpty,
     });
 
     await prefs.setString('saved_products', jsonEncode(products));
@@ -610,15 +630,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
       const SnackBar(content: Text('تمت إضافة المادة بنجاح للمخزن!')),
     );
     Navigator.pop(context);
-  }
-
-  void _scanBarcodeSim() {
-    setState(() {
-      _barcodeCtrl.text = "629100${Random().nextInt(89999) + 10000}";
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم مسح الباركود بواسطة كاميرا الموبايل!')),
-    );
   }
 
   @override
@@ -661,9 +672,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF38BDF8),
-                    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 15),
+                    padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
                   ),
-                  onPressed: _scanBarcodeSim,
+                  onPressed: _scanBarcodeReal,
                   icon: const Icon(Icons.camera_alt, color: Colors.black),
                   label: const Text('كاميرا', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
                 ),
@@ -712,7 +723,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 }
 
-// ----------------- 2. واجهة نقطة البيع POS (تطابق تقسيم الكاشير بالصورة) -----------------
+// ----------------- 4. واجهة نقطة البيع الاحترافية مع الكاميرا للباركود -----------------
 class PosScreen extends StatefulWidget {
   const PosScreen({Key? key}) : super(key: key);
 
@@ -721,7 +732,7 @@ class PosScreen extends StatefulWidget {
 }
 
 class _PosScreenState extends State<PosScreen> {
-  List _nonBarcodeProducts = [];
+  List _products = [];
   List<Map<String, dynamic>> _cart = [];
   double _totalAmount = 0.0;
 
@@ -735,19 +746,16 @@ class _PosScreenState extends State<PosScreen> {
     final prefs = await SharedPreferences.getInstance();
     String? raw = prefs.getString('saved_products');
     if (raw != null) {
-      List decoded = jsonDecode(raw);
       setState(() {
-        _nonBarcodeProducts = decoded;
+        _products = jsonDecode(raw);
       });
     } else {
-      // افتراضي للمعاينة
       setState(() {
-        _nonBarcodeProducts = [
-          {'name': 'شاي سيت', 'price': 2500.0},
-          {'name': 'نسكافيه', 'price': 500.0},
-          {'name': 'عصير برتقال', 'price': 1000.0},
-          {'name': 'ماء كارتون', 'price': 3000.0},
-          {'name': 'كولا علبة', 'price': 750.0},
+        _products = [
+          {'name': 'شاي سيت', 'price': 2500.0, 'barcode': ''},
+          {'name': 'نسكافيه', 'price': 500.0, 'barcode': ''},
+          {'name': 'عصير برتقال', 'price': 1000.0, 'barcode': ''},
+          {'name': 'ماء كارتون', 'price': 3000.0, 'barcode': ''},
         ];
       });
     }
@@ -779,11 +787,37 @@ class _PosScreenState extends State<PosScreen> {
     _totalAmount = sum;
   }
 
-  void _scanBarcodeAndAdd() {
-    _addToCart("مادة بباركود ${Random().nextInt(100)}", 1500.0);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('تم قراءة الباركود بالكاميرا وإضافته لسلة المبيعات!')),
-    );
+  Future<void> _scanAndSellReal() async {
+    try {
+      String barcodeScanRes = await FlutterBarcodeScanner.scanBarcode(
+        "#ff6666",
+        "إلغاء",
+        true,
+        ScanMode.BARCODE,
+      );
+
+      if (barcodeScanRes != '-1' && barcodeScanRes.isNotEmpty) {
+        // بحث عن المادة بالباركود أو إضافتها كمادة باركود مسجلة
+        var found = _products.firstWhere(
+          (p) => p['barcode'] == barcodeScanRes,
+          orElse: () => null,
+        );
+
+        if (found != null) {
+          _addToCart(found['name'], double.parse(found['price'].toString()));
+        } else {
+          _addToCart("مادة باركود: $barcodeScanRes", 1500.0);
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم قراءة الباركود بنجاح وإضافته للسلة! ($barcodeScanRes)')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('حدث خطأ أثناء مسح الباركود!')),
+      );
+    }
   }
 
   Future<void> _checkout() async {
@@ -827,9 +861,9 @@ class _PosScreenState extends State<PosScreen> {
         backgroundColor: const Color(0xFF1E293B),
         actions: [
           IconButton(
-            icon: const Icon(Icons.camera_alt, color: Colors.cyanAccent),
-            onPressed: _scanBarcodeAndAdd,
-            tooltip: 'مسح باركود بالكاميرا',
+            icon: const Icon(Icons.camera_alt, color: Colors.cyanAccent, size: 28),
+            onPressed: _scanAndSellReal,
+            tooltip: 'مسح باركود الكاميرا',
           ),
         ],
       ),
@@ -840,14 +874,14 @@ class _PosScreenState extends State<PosScreen> {
             flex: 5,
             child: Container(
               color: const Color(0xFF0F172A),
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(8),
               child: Column(
                 children: [
-                  const Text('سلة الفاتورة الحالية', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  const Text('سلة الفاتورة الحالية', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                   const Divider(color: Colors.white24),
                   Expanded(
                     child: _cart.isEmpty
-                        ? const Center(child: Text('السلة فارغة', style: TextStyle(color: Colors.white38)))
+                        ? const Center(child: Text('السلة فارغة', style: TextStyle(color: Colors.white38, fontSize: 12)))
                         : ListView.builder(
                             itemCount: _cart.length,
                             itemBuilder: (context, i) {
@@ -855,33 +889,33 @@ class _PosScreenState extends State<PosScreen> {
                               return Card(
                                 color: const Color(0xFF1E293B),
                                 child: ListTile(
-                                  title: Text(item['name'], style: const TextStyle(color: Colors.white, fontSize: 13)),
-                                  subtitle: Text('العدد: ${item['qty']} x ${item['price']} د.ع', style: const TextStyle(color: Colors.white60, fontSize: 11)),
-                                  trailing: Text('${item['total']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                                  title: Text(item['name'], style: const TextStyle(color: Colors.white, fontSize: 12)),
+                                  subtitle: Text('${item['qty']}x - ${item['price']} د.ع', style: const TextStyle(color: Colors.white60, fontSize: 10)),
+                                  trailing: Text('${item['total']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 12)),
                                 ),
                               );
                             },
                           ),
                   ),
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     color: const Color(0xFF1E293B),
                     child: Column(
                       children: [
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('المجموع الكلي:', style: TextStyle(color: Colors.white70)),
-                            Text('$_totalAmount د.ع', style: const TextStyle(color: Colors.amber, fontSize: 18, fontWeight: FontWeight.bold)),
+                            const Text('المجموع:', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                            Text('$_totalAmount د.ع', style: const TextStyle(color: Colors.amber, fontSize: 15, fontWeight: FontWeight.bold)),
                           ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 8),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
                             onPressed: _checkout,
-                            child: const Text('إتمام المبيعة وطباعة القائمة', style: TextStyle(color: Colors.white)),
+                            child: const Text('إتمام البيع', style: TextStyle(color: Colors.white, fontSize: 13)),
                           ),
                         ),
                       ],
@@ -892,7 +926,7 @@ class _PosScreenState extends State<PosScreen> {
             ),
           ),
           const VerticalDivider(width: 1, color: Colors.white24),
-          // الجانب الأيمن: أزرار المواد السريعة (بدون باركود)
+          // الجانب الأيمن: المواد السريعة (بدون باركود) ومربعات مجهزة
           Expanded(
             flex: 6,
             child: Container(
@@ -900,19 +934,19 @@ class _PosScreenState extends State<PosScreen> {
               padding: const EdgeInsets.all(8),
               child: Column(
                 children: [
-                  const Text('المواد بدون باركود (سريع)', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  const SizedBox(height: 8),
+                  const Text('المواد السريعة (بدون باركود)', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                  const SizedBox(height: 6),
                   Expanded(
                     child: GridView.builder(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        crossAxisSpacing: 8,
-                        mainAxisSpacing: 8,
-                        childAspectRatio: 1.3,
+                        crossAxisSpacing: 6,
+                        mainAxisSpacing: 6,
+                        childAspectRatio: 1.2,
                       ),
-                      itemCount: _nonBarcodeProducts.length,
+                      itemCount: _products.length,
                       itemBuilder: (context, i) {
-                        var p = _nonBarcodeProducts[i];
+                        var p = _products[i];
                         return ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF334155),
@@ -922,9 +956,9 @@ class _PosScreenState extends State<PosScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(p['name'], style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                              Text(p['name'], style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                               const SizedBox(height: 4),
-                              Text('${p['price']} د.ع', style: const TextStyle(color: Colors.cyanAccent, fontSize: 11)),
+                              Text('${p['price']} د.ع', style: const TextStyle(color: Colors.cyanAccent, fontSize: 10)),
                             ],
                           ),
                         );
@@ -941,7 +975,7 @@ class _PosScreenState extends State<PosScreen> {
   }
 }
 
-// ----------------- 3. واجهة كشف المبيعات (تطابق طلب حفظ القوائم) -----------------
+// ----------------- 5. باقي الشاشات (كشف المبيعات، الأرصده، المخزن، التقارير) -----------------
 class SalesLedgerScreen extends StatefulWidget {
   const SalesLedgerScreen({Key? key}) : super(key: key);
 
@@ -962,9 +996,7 @@ class _SalesLedgerScreenState extends State<SalesLedgerScreen> {
     final prefs = await SharedPreferences.getInstance();
     String? raw = prefs.getString('sales_ledger');
     if (raw != null) {
-      setState(() {
-        _ledger = jsonDecode(raw);
-      });
+      setState(() => _ledger = jsonDecode(raw));
     }
   }
 
@@ -984,8 +1016,8 @@ class _SalesLedgerScreenState extends State<SalesLedgerScreen> {
                   child: ListTile(
                     leading: const Icon(Icons.receipt, color: Colors.amber, size: 35),
                     title: Text(item['invoiceNum'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    subtitle: Text('عدد المواد: ${item['itemsCount']}\nالتاريخ: ${item['date']}', style: const TextStyle(color: Colors.white60)),
-                    trailing: Text('${item['total']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                    subtitle: Text('عدد المواد: ${item['itemsCount']}\nالوقت: ${item['date']}', style: const TextStyle(color: Colors.white60)),
+                    trailing: Text('${item['total']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontSize: 15, fontWeight: FontWeight.bold)),
                   ),
                 );
               },
@@ -994,7 +1026,6 @@ class _SalesLedgerScreenState extends State<SalesLedgerScreen> {
   }
 }
 
-// ----------------- 4. واجهة الأرصده وكارتات الشحن -----------------
 class BalancesScreen extends StatefulWidget {
   const BalancesScreen({Key? key}) : super(key: key);
 
@@ -1044,38 +1075,26 @@ class _BalancesScreenState extends State<BalancesScreen> {
               TextField(
                 controller: _networkCtrl,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'الشركة (مثلاً: آسيا، زين، كورك)',
-                  labelStyle: TextStyle(color: Colors.white60),
-                ),
+                decoration: const InputDecoration(labelText: 'الشركة (آسيا، زين، كورك)', labelStyle: TextStyle(color: Colors.white60)),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: _categoryCtrl,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'فئة الكارت (مثلاً: 5,000 أو 10,000)',
-                  labelStyle: TextStyle(color: Colors.white60),
-                ),
+                decoration: const InputDecoration(labelText: 'فئة الكارت (5000 أو 10000)', labelStyle: TextStyle(color: Colors.white60)),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: _priceCtrl,
                 keyboardType: TextInputType.number,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'السعر (د.ع)',
-                  labelStyle: TextStyle(color: Colors.white60),
-                ),
+                decoration: const InputDecoration(labelText: 'السعر (د.ع)', labelStyle: TextStyle(color: Colors.white60)),
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
             onPressed: () {
@@ -1136,17 +1155,52 @@ class _BalancesScreenState extends State<BalancesScreen> {
   }
 }
 
-// ----------------- 5. باقي الشاشات الأساسية -----------------
-class InventoryScreen extends StatelessWidget {
+class InventoryScreen extends StatefulWidget {
   const InventoryScreen({Key? key}) : super(key: key);
+
+  @override
+  _InventoryScreenState createState() => _InventoryScreenState();
+}
+
+class _InventoryScreenState extends State<InventoryScreen> {
+  List _products = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAllProducts();
+  }
+
+  Future<void> _loadAllProducts() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? raw = prefs.getString('saved_products');
+    if (raw != null) {
+      setState(() => _products = jsonDecode(raw));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('عرض المواد بالمخزن'), backgroundColor: const Color(0xFF1E293B)),
-      body: const Center(
-        child: Text('قائمة جميع المواد المسجلة بالمخزن تظهر هنا', style: TextStyle(color: Colors.white70)),
-      ),
+      body: _products.isEmpty
+          ? const Center(child: Text('لا توجد مواد مخزنة مسجلة بعد', style: TextStyle(color: Colors.white60)))
+          : ListView.builder(
+              padding: const EdgeInsets.all(15),
+              itemCount: _products.length,
+              itemBuilder: (context, index) {
+                var p = _products[index];
+                return Card(
+                  color: const Color(0xFF1E293B),
+                  child: ListTile(
+                    leading: const Icon(Icons.inventory_2, color: Colors.teal, size: 35),
+                    title: Text(p['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    subtitle: Text('الباركود: ${p['barcode'].isEmpty ? "بدون باركود" : p['barcode']}\nالكمية: ${p['qty']}', style: const TextStyle(color: Colors.white60)),
+                    trailing: Text('${p['price']} د.ع', style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
