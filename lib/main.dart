@@ -103,7 +103,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
 
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: true)),
+      MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
     );
   }
 
@@ -117,7 +117,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
         children: [
           const Icon(Icons.lock, size: 70, color: Color(0xFF38BDF8)),
           const SizedBox(height: 20),
-          const Text('تسجيل الدخول بالحساب', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+          const Text('تسجيل الدخول للحساب', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
           const SizedBox(height: 30),
           TextField(
             controller: _userCtrl,
@@ -159,7 +159,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   }
 }
 
-// ================= 2. تبويب التسجيل بالبرنامج =================
+// ================= 2. تبويب التسجيل بالبرنامج وإرسال الإشعار =================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
 
@@ -174,10 +174,12 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
 
   static const String binId = "6ada49aaac6210605a49b2cb";
   static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
-  static const String botToken = "7736630424:AAHE4Jj70yqH-d5h0x7Jg6a9xY0xY0xY0xY"; 
-  static const String chatId = "5304240000"; 
 
-  // توليد كود تفعيل فريد من 11 رقم
+  // التوكن والشات أيدي الخاصين ببوتك الرسمي
+  static const String botToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I"; 
+  static const String chatId = "6590858813"; 
+
+  // توليد كود تفعيل فريد مكون من 11 رقماً لكل مشترِك
   String _generate11DigitCode() {
     Random rnd = Random();
     String code = '';
@@ -206,8 +208,9 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setBool('is_logged_in', true);
       await prefs.setString('username', name);
       await prefs.setString('activation_code', activationCode11);
+      await prefs.setBool('is_activated', false);
 
-      // 1. الاتصال بالسحاب JSONBin
+      // 1. مزامنة سحاب JSONBin
       final getResp = await http.get(
         Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
         headers: {"X-Master-Key": masterKey},
@@ -243,8 +246,8 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         body: jsonEncode(data),
       );
 
-      // 2. إرسال إشعار تليجرام البوت المباشر
-      String telegramMsg = "🔔 طلب تفعيل جديد وفحص ذكاء اصطناعي (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n🔢 كود التفعيل (11 رقم): $activationCode11\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
+      // 2. إرسال إشعار تليجرام الفوري إلى بوتك مع كود الـ 11 رقماً
+      String telegramMsg = "🔔 طلب تفعيل جديد (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n🔢 كود التفعيل (11 رقم): $activationCode11\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
       
       try {
         final tgUrl = "https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}";
@@ -253,18 +256,18 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         print("Telegram Error: $tgError");
       }
 
-      // الانتقال للوحة التحكم مباشرة بنسخة تجريبية 30 دقيقة
+      // الانتقال للوحة التحكم بنسخة تجريبية 30 دقيقة
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: true)),
+        MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم الحفظ محلياً - حدث خطأ بسيط بالاتصال بالسحاب')),
+        const SnackBar(content: Text('تم الحفظ محلياً - والانتقال للبرنامج')),
       );
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const AppDashboardScreen(isTrial: true)),
+        MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
       );
     }
   }
@@ -335,10 +338,9 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   }
 }
 
-// ================= 3. شاشة أقسام البرنامج الرئيسية مع عداد 30 دقيقة وزر الشراء =================
+// ================= 3. لوحة التحكم مع العداد وأزرار المراسلة المباشرة =================
 class AppDashboardScreen extends StatefulWidget {
-  final bool isTrial;
-  const AppDashboardScreen({Key? key, required this.isTrial}) : super(key: key);
+  const AppDashboardScreen({Key? key}) : super(key: key);
 
   @override
   _AppDashboardScreenState createState() => _AppDashboardScreenState();
@@ -347,27 +349,34 @@ class AppDashboardScreen extends StatefulWidget {
 class _AppDashboardScreenState extends State<AppDashboardScreen> {
   int _remainingSeconds = 1800; // 30 دقيقة كاملة
   Timer? _timer;
+  bool _isActivated = false;
 
   @override
   void initState() {
     super.initState();
-    _loadTimerState();
+    _loadState();
   }
 
-  Future<void> _loadTimerState() async {
+  Future<void> _loadState() async {
     final prefs = await SharedPreferences.getInstance();
+    bool activated = prefs.getBool('is_activated') ?? false;
     int? savedTime = prefs.getInt('remaining_seconds');
-    if (savedTime != null && savedTime > 0) {
-      setState(() {
+
+    setState(() {
+      _isActivated = activated;
+      if (savedTime != null && savedTime > 0) {
         _remainingSeconds = savedTime;
-      });
+      }
+    });
+
+    if (!_isActivated) {
+      _startTimer();
     }
-    _startTimer();
   }
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_remainingSeconds > 0) {
+      if (_remainingSeconds > 0 && !_isActivated) {
         setState(() => _remainingSeconds--);
         final prefs = await SharedPreferences.getInstance();
         prefs.setInt('remaining_seconds', _remainingSeconds);
@@ -383,7 +392,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
     super.dispose();
   }
 
-  // نافذة طلب الشراء وتفعيل الكود وأزرار التواصل المباشر
+  // نافذة الشراء والتفعيل (تحتوي على روابطك الرسمية للواتساب والتليجرام)
   void _showActivationDialog(BuildContext context) {
     final _codeCtrl = TextEditingController();
 
@@ -398,11 +407,11 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'للحصول على كود التفعيل الخاص بك (11 رقم)، يرجى التواصل مع المطور عبر تليجرام أو واتساب:',
+                'للحصول على كود التفعيل الخاص بك (11 رقم)، يرجى التواصل مع المطور عبر تليجرام أو واتساب مباشرة:',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 15),
-              // أزرار التواصل المباشر (واتساب وتليجرام)
+              // أزرار المراسلة المباشرة لك
               Row(
                 children: [
                   Expanded(
@@ -461,9 +470,12 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
               String? correctCode = prefs.getString('activation_code');
 
               if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
+                await prefs.setBool('is_activated', true);
+                setState(() => _isActivated = true);
+                _timer?.cancel();
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم تفعيل البرنامج بنجاح دائم! 👑')),
+                  const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح! 👑')),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -503,31 +515,42 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
       ),
       body: Column(
         children: [
-          // شريط العداد التجريبي العلوي مع زر الشراء
-          InkWell(
-            onTap: () => _showActivationDialog(context),
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.amber.withOpacity(0.25),
+          if (!_isActivated)
+            InkWell(
+              onTap: () => _showActivationDialog(context),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                color: Colors.amber.withOpacity(0.25),
+                width: double.infinity,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.timer, color: Colors.amber, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'نسخة تجريبية مؤقتة - متبقي: $minutes:${seconds.toString().padLeft(2, '0')}',
+                      style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const SizedBox(width: 15),
+                    const Text(
+                      '[ اضغط هنا لشراء التطبيق ]',
+                      style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13, decoration: TextDecoration.underline),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(10),
+              color: Colors.green.withOpacity(0.2),
               width: double.infinity,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.timer, color: Colors.amber, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'نسخة تجريبية مؤقتة - متبقي: $minutes:${seconds.toString().padLeft(2, '0')}',
-                    style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(width: 15),
-                  const Text(
-                    '[ اضغط هنا لشراء التطبيق ]',
-                    style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13, decoration: TextDecoration.underline),
-                  ),
-                ],
+              child: const Text(
+                'النسخة مَفعلة دائمياً بكفاءة تامة 👑',
+                style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                textAlign: TextAlign.center,
               ),
             ),
-          ),
           Expanded(
             child: GridView.count(
               crossAxisCount: 2,
