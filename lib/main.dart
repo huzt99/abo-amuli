@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -84,6 +85,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   }
 }
 
+// ================= تسجيل الدخول مع التحقق السحابي =================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
 
@@ -94,22 +96,70 @@ class LoginTabScreen extends StatefulWidget {
 class _LoginTabScreenState extends State<LoginTabScreen> {
   final _userCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  bool _isLoading = false;
+
+  static const String binId = "6ada49aaac6210605a49b2cb";
+  static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
 
   Future<void> _login() async {
-    if (_userCtrl.text.trim().isEmpty || _passCtrl.text.trim().isEmpty) {
+    String username = _userCtrl.text.trim();
+    String password = _passCtrl.text.trim();
+
+    if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('الرجاء إدخال اليوزر وكلمة المرور!')),
       );
       return;
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_logged_in', true);
-    await prefs.setString('username', _userCtrl.text.trim());
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
-    );
+    setState(() => _isLoading = true);
+
+    try {
+      // فحص السحابة للتأكد من حالة التفعيل والحساب
+      final getResp = await http.get(
+        Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
+        headers: {"X-Master-Key": masterKey},
+      );
+
+      bool isCloudActivated = false;
+      if (getResp.statusCode == 200) {
+        var decoded = jsonDecode(getResp.body);
+        if (decoded != null && decoded['record'] != null) {
+          var record = decoded['record'];
+          // فحص إذا كان الحساب موجوداً في القوائم المفعلة أو الطلبات السابقة
+          List activatedList = record['activated_users'] ?? [];
+          if (activatedList.contains(username)) {
+            isCloudActivated = true;
+          }
+        }
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setString('username', username);
+      // إذا كان مفعلاً بالسحابة أو كود مطور خاص، يبقى مفعلاً حتى بعد إعادة التثبيت
+      if (isCloudActivated || username == "admin") {
+        await prefs.setBool('is_activated', true);
+      }
+
+      setState(() => _isLoading = false);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+      // الدخول محلياً في حال عدم وجود انترنت إذا كان مسجلاً مسبقاً
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setString('username', username);
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
+      );
+    }
   }
 
   @override
@@ -149,21 +199,24 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
             ),
           ),
           const SizedBox(height: 25),
-          ElevatedButton(
-            onPressed: _login,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 16, color: Colors.white)),
-          ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+                  onPressed: _login,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('تسجيل الدخول', style: TextStyle(fontSize: 16, color: Colors.white)),
+                ),
         ],
       ),
     );
   }
 }
 
+// ================= تسجيل حساب جديد وإرسال الطلب للسحابة =================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
 
@@ -175,6 +228,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  bool _isLoading = false;
 
   static const String binId = "6ada49aaac6210605a49b2cb";
   static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
@@ -202,6 +256,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       return;
     }
 
+    setState(() => _isLoading = true);
     String activationCode11 = _generate11DigitCode();
 
     try {
@@ -212,7 +267,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setBool('is_activated', false);
 
       final getResp = await http.get(
-        Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
+        Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
         headers: {"X-Master-Key": masterKey},
       );
 
@@ -246,18 +301,21 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         body: jsonEncode(data),
       );
 
-      String telegramMsg = "🔔 طلب تفعيل جديد (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n🔢 كود التفعيل (11 رقم): $activationCode11\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
+      String telegramMsg = "🔔 طلب شراء وتفعيل جديد (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔑 الرمز: $password\n🔢 كود التفعيل: $activationCode11\n⏰ الوقت: ${DateTime.now().toString().substring(0, 19)}";
       
       try {
         final tgUrl = "https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}";
         await http.get(Uri.parse(tgUrl));
       } catch (e) {}
 
+      setState(() => _isLoading = false);
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
       );
     } catch (e) {
+      setState(() => _isLoading = false);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AppDashboardScreen()),
@@ -273,7 +331,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'أدخل بياناتك لإنشاء حساب والبدء المؤقت بالبرنامج',
+            'أدخل بياناتك لإنشاء حساب وطلب تفعيل النسخة',
             style: TextStyle(color: Colors.white70, fontSize: 13),
             textAlign: TextAlign.center,
           ),
@@ -282,7 +340,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
             controller: _nameCtrl,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: 'اليوزر (اسم المستخدم أو الإيميل)',
+              labelText: 'اليوزر (اسم المستخدم)',
               labelStyle: const TextStyle(color: Colors.white60),
               filled: true,
               fillColor: const Color(0xFF1E293B),
@@ -316,15 +374,17 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
             ),
           ),
           const SizedBox(height: 25),
-          ElevatedButton(
-            onPressed: _submitRequest,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF10B981),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('تسجيل وطلب تفعيل الحساب', style: TextStyle(fontSize: 16, color: Colors.white)),
-          ),
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+                  onPressed: _submitRequest,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('تسجيل وطلب التفعيل', style: TextStyle(fontSize: 16, color: Colors.white)),
+                ),
         ],
       ),
     );
@@ -340,7 +400,7 @@ class AppDashboardScreen extends StatefulWidget {
 }
 
 class _AppDashboardScreenState extends State<AppDashboardScreen> {
-  int _remainingSeconds = 1800;
+  int _remainingSeconds = 1800; // 30 دقيقة تجريبية
   Timer? _timer;
   bool _isActivated = false;
 
@@ -399,7 +459,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'للحصول على كود التفعيل (11 رقم)، يرجى التواصل مع المطور:',
+                'للحصول على كود التفعيل (11 رقم) بعد دفع قيمة البرنامج، تواصل مع المطور:',
                 style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 15),
@@ -409,7 +469,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
                       onPressed: () async {
-                        final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20تطبيق%20POS");
+                        final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20نسخة%20POS");
                         if (await canLaunchUrl(whatsappUrl)) {
                           await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
                         }
@@ -466,7 +526,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 _timer?.cancel();
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم التفعيل بنجاح! 👑')),
+                  const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح! 👑')),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -519,16 +579,27 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                     const Icon(Icons.timer, color: Colors.amber, size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      'نسخة تجريبية مؤقتة - متبقي: $minutes:${seconds.toString().padLeft(2, '0')}',
+                      'نسخة تجريبية - متبقي: $minutes:${seconds.toString().padLeft(2, '0')}',
                       style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                     const SizedBox(width: 15),
                     const Text(
-                      '[ اضغط هنا لشراء التطبيق ]',
+                      '[ اضغط هنا لتفعيل النسخة الدائمة ]',
                       style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13, decoration: TextDecoration.underline),
                     ),
                   ],
                 ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(10),
+              color: Colors.green.withOpacity(0.2),
+              width: double.infinity,
+              child: const Text(
+                'النسخة مَفعلة دائمياً للزبون 👑',
+                style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                textAlign: TextAlign.center,
               ),
             ),
           Expanded(
@@ -571,23 +642,123 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ----------------- شاشة مسح الباركود بالكاميرا الحقيقية -----------------
-class BarcodeScannerView extends StatelessWidget {
+// ----------------- شاشة مسح الباركود (مصححة لحل الشاشة السوداء) -----------------
+class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
   @override
+  _BarcodeScannerViewState createState() => _BarcodeScannerViewState();
+}
+
+class _BarcodeScannerViewState extends State<BarcodeScannerView> {
+  late MobileScannerController cameraController;
+  bool _hasPermission = false;
+  bool _isChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    cameraController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+    );
+    _checkPermissionAndStart();
+  }
+
+  Future<void> _checkPermissionAndStart() async {
+    var status = await Permission.camera.status;
+    if (!status.isGranted) {
+      status = await Permission.camera.request();
+    }
+    setState(() {
+      _hasPermission = status.isGranted;
+      _isChecking = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    cameraController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('وجّه الكاميرا على الباركود')),
-      body: MobileScanner(
-        controller: MobileScannerController(
-          detectionSpeed: DetectionSpeed.noDuplicates,
-          facing: CameraFacing.back,
+    if (_isChecking) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('التحقق من الكاميرا')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_hasPermission) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('إذن الكاميرا مرفوض')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'يرجى السماح للتطبيق باستخدام الكاميرا من إعدادات الهاتف لمسح الباركود.',
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                  onPressed: () => openAppSettings(),
+                  child: const Text('فتح إعدادات التطبيق', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
         ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('وجّه الكاميرا على الباركود'),
+        actions: [
+          IconButton(
+            icon: ValueListenableBuilder<TorchState>(
+              valueListenable: cameraController.torchState,
+              builder: (context, state, child) {
+                switch (state) {
+                  case TorchState.off:
+                    return const Icon(Icons.flash_off, color: Colors.grey);
+                  case TorchState.on:
+                    return const Icon(Icons.flash_on, color: Colors.yellow);
+                }
+              },
+            ),
+            onPressed: () => cameraController.toggleTorch(),
+          ),
+          IconButton(
+            icon: ValueListenableBuilder<CameraFacing>(
+              valueListenable: cameraController.cameraFacingState,
+              builder: (context, state, child) {
+                switch (state) {
+                  case CameraFacing.front:
+                    return const Icon(Icons.camera_front);
+                  case CameraFacing.back:
+                    return const Icon(Icons.camera_rear);
+                }
+              },
+            ),
+            onPressed: () => cameraController.switchCamera(),
+          ),
+        ],
+      ),
+      body: MobileScanner(
+        controller: cameraController,
         onDetect: (capture) {
           final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
             if (barcode.rawValue != null) {
+              // إغلاق الشاشة وإرجاع الباركود المقروء
               Navigator.pop(context, barcode.rawValue);
               break;
             }
@@ -1212,27 +1383,4 @@ class _InventoryScreenState extends State<InventoryScreen> {
 }
 
 class ReportsScreen extends StatelessWidget {
-  const ReportsScreen({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('التقارير والأرباح'), backgroundColor: const Color(0xFF1E293B)),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            Card(
-              color: const Color(0xFF1E293B),
-              child: const ListTile(
-                leading: Icon(Icons.trending_up, color: Colors.purple, size: 40),
-                title: Text('إجمالي المبيعات اليومية', style: TextStyle(color: Colors.white60)),
-                subtitle: Text('125,000 د.ع', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+  co
