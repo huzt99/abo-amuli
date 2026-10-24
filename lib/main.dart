@@ -638,7 +638,8 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 _buildBtn(context, 'عرض المواد', Icons.inventory_2, Colors.teal, const InventoryScreen()),
                 _buildBtn(context, 'كشف مبيعات', Icons.receipt_long, Colors.indigo, const SalesLedgerScreen()),
                 _buildBtn(context, 'الأرصده', Icons.sim_card, Colors.green, const BalancesScreen()),
-                _buildBtn(context, 'التقارير والأرباح', Icons.bar_chart, Colors.purple, const ReportsScreen()),
+                // تم تعديل السطر أدناه بإزالة const ليتوافق تماماً مع بناء الدالة
+                _buildBtn(context, 'التقارير والأرباح', Icons.bar_chart, Colors.purple, ReportsScreen()),
               ],
             ),
           ),
@@ -1387,6 +1388,4 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ? const Center(child: Text('لا توجد مواد مخزنة مسجلة بعد', style: TextStyle(color: Colors.white60)))
           : ListView.builder(
               padding: const EdgeInsets.all(15),
-              itemCount: _products.length,
-              itemBuilder: (context, index) {
-                va
+              itemCount: _prod
