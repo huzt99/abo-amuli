@@ -129,6 +129,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
 
     bool wasActivatedLocally = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
 
+    // تفعيل دائم إذا كان في السحابة، أو مفعل مسبقاً، أو الحساب الإداري
     if (isCloudActivated || wasActivatedLocally || username == "admin" || username == "ابو مؤمل") {
       await prefs.setBool('is_activated', true);
       await prefs.setBool('activated_$username', true);
@@ -156,7 +157,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
             controller: _userCtrl,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: 'اليوزر (اسم المستخدم)',
+              labelText: 'اليوزر (اسم المحل / المستخدم)',
               labelStyle: const TextStyle(color: Colors.white60),
               filled: true,
               fillColor: const Color(0xFF1E293B),
@@ -239,7 +240,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setString('activation_code', activationCode11);
       await prefs.setBool('is_activated', false);
 
-      String telegramMsg = "🔔 طلب تفعيل جديد (POS App)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 كود التفعيل: $activationCode11";
+      String telegramMsg = "🔔 طلب تفعيل حساب جديد (POS App)\n\n👤 اسم المحل/اليوزر: $name\n📱 الهاتف: $phone\n🔢 كود التفعيل المولد: $activationCode11";
       try {
         await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
       } catch (e) {}
@@ -259,9 +260,9 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('أدخل بياناتك لإنشاء حساب وطلب تفعيل النسخة', style: TextStyle(color: Colors.white70, fontSize: 13), textAlign: TextAlign.center),
+          const Text('أنشئ حسابك وسجل اسم المحل لطلب التفعيل السريع', style: TextStyle(color: Colors.white70, fontSize: 13), textAlign: TextAlign.center),
           const SizedBox(height: 20),
-          TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'اليوزر (اسم المستخدم)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+          TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'اسم المحل / اليوزر', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
           const SizedBox(height: 15),
           TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'رقم الهاتف / واتساب', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
           const SizedBox(height: 15),
@@ -272,7 +273,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
               : ElevatedButton(
                   onPressed: _submitRequest,
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('تسجيل وطلب التفعيل', style: TextStyle(fontSize: 16, color: Colors.white)),
+                  child: const Text('تسجيل وطلب التفعيل السحابي', style: TextStyle(fontSize: 16, color: Colors.white)),
                 ),
         ],
       ),
@@ -344,7 +345,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('تواصل مع المطور للحصول على كود التفعيل:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Text('أدخل كود التفعيل المستلم عبر التليجرام أو الواتساب لتفعيل حسابك نهائياً:', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -377,7 +378,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
               TextField(
                 controller: _codeCtrl,
                 style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(labelText: 'أدخل كود التفعيل (11 رقم)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF0F172A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+                decoration: InputDecoration(labelText: 'أدخل كود التفعيل (أو الرمز العام)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF0F172A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
               ),
             ],
           ),
@@ -400,7 +401,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 _timer?.cancel();
                 Navigator.pop(context);
                 
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('تم تفعيل النسخة الدائمة بنجاح! 👑')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('تم التفعيل دائمياً وبنجاح تام للأبد! 👑')));
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text('كود التفعيل غير صحيح!')));
               }
@@ -500,9 +501,6 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ========================================================
-// شاشة إدخال الباركود السريعة (بديلة للكاميرا المعطلة تماماً)
-// ========================================================
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -529,7 +527,7 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
             const Icon(Icons.qr_code_scanner, size: 80, color: Color(0xFF38BDF8)),
             const SizedBox(height: 20),
             const Text(
-              'أدخل رقم الباركود يدوياً أو استخدم ماسح الباركود الخارجي (الجهاز سيلتقطه تلقائياً):',
+              'أدخل رقم الباركود يدوياً أو استخدم ماسح الباركود الخارجي:',
               style: TextStyle(color: Colors.white70, fontSize: 14),
               textAlign: TextAlign.center,
             ),
@@ -564,11 +562,11 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
                   Navigator.pop(context, code);
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('الرجاء إدخال أو مسح الباركود أولاً!')),
+                    const SnackBar(content: Text('الرجاء إدخال الباركود أولاً!')),
                   );
                 }
               },
-              child: const Text('تم (إضافة الباركود)', style: TextStyle(fontSize: 16, color: Colors.white)),
+              child: const Text('تم (تأكيد الباركود)', style: TextStyle(fontSize: 16, color: Colors.white)),
             ),
           ],
         ),
@@ -577,6 +575,9 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   }
 }
 
+// ========================================================
+// شاشة إضافة مادة مع اختيار التواريخ بالتقويم التفاعلي (من 2026 إلى 5000)
+// ========================================================
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({Key? key}) : super(key: key);
 
@@ -589,12 +590,38 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _barcodeCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   final _qtyCtrl = TextEditingController();
-  final _expiryCtrl = TextEditingController();
   final _alertPeriodCtrl = TextEditingController(text: '7');
+  
+  String _expiryDate = 'بدون تاريخ';
 
   Future<void> _scanBarcode() async {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const BarcodeScannerView()));
-    if (result != null) setState(() => _barcodeCtrl.text = result);
+    if (result != null) {
+      setState(() {
+        _barcodeCtrl.text = result;
+        // هنا يمكنك تخصيص جلب اسم المادة مباشرة إذا كان الباركود معروفاً
+        if (result == "6291001234567") {
+          _nameCtrl.text = "اندومي";
+        } else {
+          _nameCtrl.text = "مادة جديدة ($result)";
+        }
+      });
+    }
+  }
+
+  // تقويم تفاعلي واسع النطاق (من 2026 لغاية سنة 5000)
+  Future<void> _pickExpiryDate() async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2026),
+      lastDate: DateTime(5000),
+    );
+    if (picked != null) {
+      setState(() {
+        _expiryDate = "${picked.year}/${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}";
+      });
+    }
   }
 
   Future<void> _addProduct() async {
@@ -612,41 +639,61 @@ class _AddProductScreenState extends State<AddProductScreen> {
       'price': double.parse(_priceCtrl.text.trim()),
       'qty': int.tryParse(_qtyCtrl.text.trim()) ?? 1,
       'add_date': DateTime.now().toString().substring(0, 10),
-      'expiry_date': _expiryCtrl.text.trim().isEmpty ? 'بدون' : _expiryCtrl.text.trim(),
+      'expiry_date': _expiryDate,
       'alert_period': _alertPeriodCtrl.text.trim().isEmpty ? '7' : _alertPeriodCtrl.text.trim(),
     });
 
     await prefs.setString('saved_products', jsonEncode(products));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة المادة مع تواريخ الصلاحية بنجاح!')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة المادة والكمية بنجاح!')));
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إضافة مادة جديدة مع الصلاحية'), backgroundColor: const Color(0xFF1E293B)),
+      appBar: AppBar(title: const Text('إضافة مادة جديدة وتاريخ الصلاحية'), backgroundColor: const Color(0xFF1E293B)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'اسم المادة', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
-            const SizedBox(height: 15),
             Row(children: [
               Expanded(child: TextField(controller: _barcodeCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الباركود', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))))),
               const SizedBox(width: 10),
-              ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8)), onPressed: _scanBarcode, icon: const Icon(Icons.qr_code, color: Colors.black), label: const Text('باركود', style: TextStyle(color: Colors.black))),
+              ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8)), onPressed: _scanBarcode, icon: const Icon(Icons.qr_code, color: Colors.black), label: const Text('مسح', style: TextStyle(color: Colors.black))),
             ]),
+            const SizedBox(height: 15),
+            TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'اسم المادة (يظهر تلقائياً)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 15),
             TextField(controller: _priceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'سعر البيع', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 15),
-            TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الكمية', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الكمية أو عدد القطع بالكرتون', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 15),
-            TextField(controller: _expiryCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'تاريخ الاكسباير (مثال: 2027/12)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            
+            // زر اختيار تاريخ الاكسباير بالتقويم التفاعلي
+            InkWell(
+              onTap: _pickExpiryDate,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E293B),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white24),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('تاريخ الإكسباير: $_expiryDate', style: const TextStyle(color: Colors.white, fontSize: 15)),
+                    const Icon(Icons.calendar_today, color: Color(0xFF38BDF8)),
+                  ],
+                ),
+              ),
+            ),
+
             const SizedBox(height: 15),
             TextField(controller: _alertPeriodCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'فترة التنبيه قبل الانتهاء (أيام)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 25),
-            ElevatedButton(onPressed: _addProduct, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('حفظ المادة', style: TextStyle(fontSize: 16, color: Colors.white))),
+            ElevatedButton(onPressed: _addProduct, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('حفظ المادة في المخزن', style: TextStyle(fontSize: 16, color: Colors.white))),
           ],
         ),
       ),
@@ -680,8 +727,8 @@ class _PosScreenState extends State<PosScreen> {
     } else {
       setState(() {
         _products = [
+          {'name': 'اندومي', 'price': 500.0, 'barcode': '6291001234567', 'expiry_date': '2027/12/31'},
           {'name': 'شاي', 'price': 2500.0, 'barcode': '', 'expiry_date': 'بدون'},
-          {'name': 'نسكافيه', 'price': 500.0, 'barcode': '', 'expiry_date': 'بدون'},
         ];
       });
     }
@@ -712,10 +759,11 @@ class _PosScreenState extends State<PosScreen> {
       var found = _products.firstWhere((p) => p['barcode'] == result, orElse: () => null);
       if (found != null) {
         _addToCart(found['name'], double.parse(found['price'].toString()));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تمت إضافة (${found['name']}) للسلة بنجاح!')));
       } else {
-        _addToCart("مادة باركود: $result", 1500.0);
+        _addToCart("مادة باركود: $result", 1000.0);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم إضافة باركود جديد: $result')));
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تمت إضافة الباركود ($result) للسلة!')));
     }
   }
 
@@ -745,7 +793,7 @@ class _PosScreenState extends State<PosScreen> {
           IconButton(
             icon: const Icon(Icons.qr_code_scanner, color: Colors.cyanAccent, size: 28),
             onPressed: _scanAndSell,
-            tooltip: 'إدخال الباركود',
+            tooltip: 'مسح الباركود للبيع',
           ),
         ],
       ),
@@ -817,7 +865,6 @@ class _SalesLedgerScreenState extends State<SalesLedgerScreen> {
     super.initState();
     _loadLedger();
   }
-  Future<void> _loadList() async {}
   Future<void> _loadLedger() async {
     final prefs = await SharedPreferences.getInstance();
     String? raw = prefs.getString('sales_ledger');
@@ -847,7 +894,7 @@ class BalancesScreen extends StatelessWidget {
 }
 
 class InventoryScreen extends StatefulWidget {
-  const InventoryScreen({Key? codeKey}) : super(key: codeKey);
+  const InventoryScreen({Key? key}) : super(key: key);
 
   @override
   _InventoryScreenState createState() => _InventoryScreenState();
