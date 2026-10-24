@@ -95,6 +95,9 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   final _passCtrl = TextEditingController();
   bool _isLoading = false;
 
+  static const String binId = "6ada49aaac6210605a49b2cb";
+  static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
+
   Future<void> _login() async {
     String username = _userCtrl.text.trim();
     String password = _passCtrl.text.trim();
@@ -107,14 +110,32 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     }
 
     setState(() => _isLoading = true);
+    bool isCloudActivated = false;
+
+    try {
+      final getResp = await http.get(
+        Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
+        headers: {"X-Master-Key": masterKey},
+      );
+      if (getResp.statusCode == 200) {
+        var decoded = jsonDecode(getResp.body);
+        if (decoded != null && decoded['record'] != null) {
+          List activatedList = decoded['record']['activated_users'] ?? [];
+          if (activatedList.contains(username)) {
+            isCloudActivated = true;
+          }
+        }
+      }
+    } catch (e) {}
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', username);
 
-    // التحقق من التفعيل الدائم المخزن محلياً
-    bool globalActivated = prefs.getBool('global_activated') ?? false;
-    if (username == "admin" || username == "ابو مؤمل" || globalActivated) {
+    if (isCloudActivated || username == "admin" || username == "ابو مؤمل") {
       await prefs.setBool('is_activated', true);
+    } else {
+      await prefs.setBool('is_activated', false);
     }
 
     setState(() => _isLoading = false);
@@ -188,6 +209,11 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   final _passCtrl = TextEditingController();
   bool _isLoading = false;
 
+  static const String binId = "6ada49aaac6210605a49b2cb";
+  static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
+  static const String botToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I"; 
+  static const String chatId = "6590858813"; 
+
   String _generate11DigitCode() {
     Random rnd = Random();
     String code = '';
@@ -210,13 +236,54 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
     setState(() => _isLoading = true);
     String activationCode11 = _generate11DigitCode();
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_logged_in', true);
-    await prefs.setString('username', name);
-    await prefs.setString('activation_code', activationCode11);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setString('username', name);
+      await prefs.setString('activation_code', activationCode11);
+      await prefs.setBool('is_activated', false);
 
-    setState(() => _isLoading = false);
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
+      final getResp = await http.get(
+        Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
+        headers: {"X-Master-Key": masterKey},
+      );
+
+      Map<String, dynamic> data = {};
+      if (getResp.statusCode == 200) {
+        var decoded = jsonDecode(getResp.body);
+        if (decoded != null && decoded['record'] != null) {
+          data = Map<String, dynamic>.from(decoded['record']);
+        }
+      }
+
+      data['pending_requests'] ??= [];
+      List pendingList = List.from(data['pending_requests']);
+      pendingList.add({
+        'name': name,
+        'phone': phone,
+        'password': password,
+        'code_11': activationCode11,
+        'date': DateTime.now().toIso8601String(),
+      });
+      data['pending_requests'] = pendingList;
+
+      await http.put(
+        Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
+        headers: {"Content-Type": "application/json", "X-Master-Key": masterKey},
+        body: jsonEncode(data),
+      );
+
+      String telegramMsg = "🔔 طلب تفعيل جديد (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 الكود: $activationCode11";
+      try {
+        await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
+      } catch (e) {}
+
+      setState(() => _isLoading = false);
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
+    } catch (e) {
+      setState(() => _isLoading = false);
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
+    }
   }
 
   @override
@@ -267,7 +334,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
 
   Future<void> _loadState() async {
     final prefs = await SharedPreferences.getInstance();
-    bool activated = prefs.getBool('is_activated') ?? prefs.getBool('global_activated') ?? false;
+    bool activated = prefs.getBool('is_activated') ?? false;
     int? savedTime = prefs.getInt('remaining_seconds');
     setState(() {
       _isActivated = activated;
@@ -306,8 +373,8 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('للحصول على كود التفعيل، تواصل مع المطور مباشرة عبر أزرار الاتصال أدناه:', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              const SizedBox(height: 15),
+              const Text('تواصل مع المطور للحصول على كود التفعيل:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -317,11 +384,11 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                         final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20نسخة%20POS");
                         try { await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication); } catch (e) {}
                       },
-                      icon: const Icon(Icons.chat, color: Colors.white, size: 18),
-                      label: const Text('واتساب', style: TextStyle(color: Colors.white)),
+                      icon: const Icon(Icons.chat, color: Colors.white, size: 16),
+                      label: const Text('واتساب', style: TextStyle(color: Colors.white, fontSize: 12)),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
@@ -329,17 +396,17 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                         final telegramUrl = Uri.parse("https://t.me/huzt92");
                         try { await launchUrl(telegramUrl, mode: LaunchMode.externalApplication); } catch (e) {}
                       },
-                      icon: const Icon(Icons.telegram, color: Colors.white, size: 18),
-                      label: const Text('تليجرام', style: TextStyle(color: Colors.white)),
+                      icon: const Icon(Icons.telegram, color: Colors.white, size: 16),
+                      label: const Text('تليجرام', style: TextStyle(color: Colors.white, fontSize: 12)),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 15),
               TextField(
                 controller: _codeCtrl,
                 style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(labelText: 'كود التفعيل (11 رقم)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF0F172A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+                decoration: InputDecoration(labelText: 'أدخل كود التفعيل (11 رقم)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF0F172A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
               ),
             ],
           ),
@@ -351,15 +418,36 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               String? correctCode = prefs.getString('activation_code');
+              String username = prefs.getString('username'] ?? 'user';
               if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
                 await prefs.setBool('is_activated', true);
-                // حفظ التفعيل بشكل دائم بحيث لا يطلب تفعيل مرة أخرى أبداً على الجهاز
-                await prefs.setBool('global_activated', true);
                 
+                // حفظ التفعيل سحابياً في JSONBin حتى لا يضيع أبداً عند إعادة التثبيت
+                try {
+                  const String binId = "6ada49aaac6210605a49b2cb";
+                  const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
+                  final getResp = await http.get(Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"), headers: {"X-Master-Key": masterKey});
+                  if (getResp.statusCode == 200) {
+                    var decoded = jsonDecode(getResp.body);
+                    Map<String, dynamic> data = Map<String, dynamic>.from(decoded['record'] ?? {});
+                    data['activated_users'] ??= [];
+                    List activatedList = List.from(data['activated_users']);
+                    if (!activatedList.contains(username)) {
+                      activatedList.add(username);
+                      data['activated_users'] = activatedList;
+                      await http.put(
+                        Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
+                        headers: {"Content-Type": "application/json", "X-Master-Key": masterKey},
+                        body: jsonEncode(data),
+                      );
+                    }
+                  }
+                } catch (e) {}
+
                 setState(() => _isActivated = true);
                 _timer?.cancel();
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح للأبد! 👑')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح وسحابياً للأبد! 👑')));
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('كود التفعيل غير صحيح!')));
               }
@@ -468,7 +556,7 @@ class BarcodeScannerView extends StatefulWidget {
 
 class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   MobileScannerController controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
+    detectionSpeed: DetectionSpeed.noDuplicates,
     facing: CameraFacing.back,
   );
   bool _hasPermission = false;
@@ -505,48 +593,20 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-
     if (!_hasPermission) {
       return Scaffold(
         appBar: AppBar(title: const Text('إذن الكاميرا مرفوض')),
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('يرجى السماح للتطبيق باستخدام الكاميرا لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                  onPressed: () => openAppSettings(),
-                  child: const Text('فتح إعدادات التطبيق', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          ),
+          child: ElevatedButton(onPressed: () => openAppSettings(), child: const Text('فتح الإعدادات')),
         ),
       );
     }
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('مسح الباركود بالكاميرا'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on, color: Colors.yellow),
-            onPressed: () => controller.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.camera_rear, color: Colors.white),
-            onPressed: () => controller.switchCamera(),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('مسح الباركود')),
       body: MobileScanner(
         controller: controller,
         onDetect: (capture) {
-          final List<Barcode> barcodes = capture.barcodes;
+          final barcodes = capture.barcodes;
           for (final barcode in barcodes) {
             if (barcode.rawValue != null) {
               Navigator.pop(context, barcode.rawValue);
@@ -571,6 +631,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _barcodeCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
   final _qtyCtrl = TextEditingController();
+  final _expiryCtrl = TextEditingController();
+  final _alertPeriodCtrl = TextEditingController(text: '7');
 
   Future<void> _scanBarcode() async {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const BarcodeScannerView()));
@@ -585,16 +647,26 @@ class _AddProductScreenState extends State<AddProductScreen> {
     final prefs = await SharedPreferences.getInstance();
     String? raw = prefs.getString('saved_products');
     List products = raw != null ? jsonDecode(raw) : [];
-    products.add({'name': _nameCtrl.text.trim(), 'barcode': _barcodeCtrl.text.trim(), 'price': double.parse(_priceCtrl.text.trim()), 'qty': int.tryParse(_qtyCtrl.text.trim()) ?? 1});
+    
+    products.add({
+      'name': _nameCtrl.text.trim(),
+      'barcode': _barcodeCtrl.text.trim(),
+      'price': double.parse(_priceCtrl.text.trim()),
+      'qty': int.tryParse(_qtyCtrl.text.trim()) ?? 1,
+      'add_date': DateTime.now().toString().substring(0, 10),
+      'expiry_date': _expiryCtrl.text.trim().isEmpty ? 'بدون' : _expiryCtrl.text.trim(),
+      'alert_period': _alertPeriodCtrl.text.trim().isEmpty ? '7' : _alertPeriodCtrl.text.trim(),
+    });
+
     await prefs.setString('saved_products', jsonEncode(products));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة المادة بنجاح للمخزن!')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة المادة مع تواريخ الصلاحية بنجاح!')));
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إضافة مادة جديدة'), backgroundColor: const Color(0xFF1E293B)),
+      appBar: AppBar(title: const Text('إضافة مادة جديدة مع الصلاحية'), backgroundColor: const Color(0xFF1E293B)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -611,6 +683,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
             TextField(controller: _priceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'سعر البيع', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 15),
             TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الكمية', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            const SizedBox(height: 15),
+            TextField(controller: _expiryCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'تاريخ الاكسباير (مثال: 2027/12)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            const SizedBox(height: 15),
+            TextField(controller: _alertPeriodCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'فترة التنبيه قبل الانتهاء (أيام)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 25),
             ElevatedButton(onPressed: _addProduct, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 15)), child: const Text('حفظ المادة', style: TextStyle(fontSize: 16, color: Colors.white))),
           ],
@@ -646,8 +722,8 @@ class _PosScreenState extends State<PosScreen> {
     } else {
       setState(() {
         _products = [
-          {'name': 'شاي', 'price': 2500.0, 'barcode': ''},
-          {'name': 'نسكافيه', 'price': 500.0, 'barcode': ''},
+          {'name': 'شاي', 'price': 2500.0, 'barcode': '', 'expiry_date': 'بدون'},
+          {'name': 'نسكافيه', 'price': 500.0, 'barcode': '', 'expiry_date': 'بدون'},
         ];
       });
     }
@@ -833,14 +909,14 @@ class _InventoryScreenState extends State<InventoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('عرض المواد بالمخزن'), backgroundColor: const Color(0xFF1E293B)),
+      appBar: AppBar(title: const Text('عرض المواد بالمخزن والصلاحية'), backgroundColor: const Color(0xFF1E293B)),
       body: ListView.builder(
         itemCount: _products.length,
         itemBuilder: (context, index) {
           var p = _products[index];
           return ListTile(
             title: Text(p['name'], style: const TextStyle(color: Colors.white)),
-            subtitle: Text('الكمية: ${p['qty']}', style: const TextStyle(color: Colors.white60)),
+            subtitle: Text('الكمية: ${p['qty']} | الاكسباير: ${p['expiry_date'] ?? 'بدون'}', style: const TextStyle(color: Colors.white60)),
             trailing: Text('${p['price']} د.ع', style: const TextStyle(color: Colors.greenAccent)),
           );
         },
