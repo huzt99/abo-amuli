@@ -4,12 +4,26 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // التهيئة المباشرة لـ Firebase بدون الحاجة لأي ملفات خارجية
+  await Firebase.initializeApp(
+    options: const FirebaseOptions(
+      apiKey: "AIzaSyArFq9R68T7mlNNKrIRs03A7uHNpzibHdo",
+      appId: "1:849284856784:android:58887f90b6b4694edb17d5",
+      messagingSenderId: "849284856784",
+      projectId: "pos-system-2e2dc",
+      storageBucket: "pos-system-2e2dc.firebasestorage.app",
+    ),
+  );
+
   final prefs = await SharedPreferences.getInstance();
   bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
   runApp(PosClientApp(isLoggedIn: isLoggedIn));
@@ -95,9 +109,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   final _passCtrl = TextEditingController();
   bool _isLoading = false;
 
-  static const String binId = "6ada49aaac6210605a49b2cb";
-  static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
-
   Future<void> _login() async {
     String username = _userCtrl.text.trim();
     String password = _passCtrl.text.trim();
@@ -111,23 +122,14 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
 
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
-    
-    // التحقق المحلي الفوري أولاً لضمان عدم ضياع التفعيل أبداً
-    bool isLocallyActivated = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
-    bool isCloudActivated = false;
 
+    bool isCloudActivated = false;
     try {
-      final getResp = await http.get(
-        Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
-        headers: {"X-Master-Key": masterKey},
-      );
-      if (getResp.statusCode == 200) {
-        var decoded = jsonDecode(getResp.body);
-        if (decoded != null && decoded['record'] != null) {
-          List activatedList = decoded['record']['activated_users'] ?? [];
-          if (activatedList.contains(username)) {
-            isCloudActivated = true;
-          }
+      var doc = await FirebaseFirestore.instance.collection('app_settings').doc('activation_data').get();
+      if (doc.exists) {
+        List activatedList = doc.data()?['activated_users'] ?? [];
+        if (activatedList.contains(username)) {
+          isCloudActivated = true;
         }
       }
     } catch (e) {}
@@ -135,7 +137,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', username);
 
-    if (isLocallyActivated || isCloudActivated || username == "admin" || username == "ابو مؤمل") {
+    if (isCloudActivated || username == "admin" || username == "ابو مؤمل" || prefs.getBool('activated_$username') == true) {
       await prefs.setBool('is_activated', true);
       await prefs.setBool('activated_$username', true);
     } else {
@@ -213,8 +215,6 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   final _passCtrl = TextEditingController();
   bool _isLoading = false;
 
-  static const String binId = "6ada49aaac6210605a49b2cb";
-  static const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
   static const String botToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I"; 
   static const String chatId = "6590858813"; 
 
@@ -247,37 +247,17 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setString('activation_code', activationCode11);
       await prefs.setBool('is_activated', false);
 
-      final getResp = await http.get(
-        Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"),
-        headers: {"X-Master-Key": masterKey},
-      );
+      await FirebaseFirestore.instance.collection('app_settings').doc('activation_data').set({
+        'pending_requests': FieldValue.arrayUnion([{
+          'name': name,
+          'phone': phone,
+          'password': password,
+          'code_11': activationCode11,
+          'date': DateTime.now().toIso8601String(),
+        }])
+      }, SetOptions(merge: true));
 
-      Map<String, dynamic> data = {};
-      if (getResp.statusCode == 200) {
-        var decoded = jsonDecode(getResp.body);
-        if (decoded != null && decoded['record'] != null) {
-          data = Map<String, dynamic>.from(decoded['record']);
-        }
-      }
-
-      data['pending_requests'] ??= [];
-      List pendingList = List.from(data['pending_requests']);
-      pendingList.add({
-        'name': name,
-        'phone': phone,
-        'password': password,
-        'code_11': activationCode11,
-        'date': DateTime.now().toIso8601String(),
-      });
-      data['pending_requests'] = pendingList;
-
-      await http.put(
-        Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
-        headers: {"Content-Type": "application/json", "X-Master-Key": masterKey},
-        body: jsonEncode(data),
-      );
-
-      String telegramMsg = "🔔 طلب تفعيل جديد (POS)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 الكود: $activationCode11";
+      String telegramMsg = "🔔 طلب تفعيل جديد (POS - Firebase)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 الكود: $activationCode11";
       try {
         await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
       } catch (e) {}
@@ -429,30 +409,15 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 await prefs.setBool('activated_$username', true);
                 
                 try {
-                  const String binId = "6ada49aaac6210605a49b2cb";
-                  const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
-                  final getResp = await http.get(Uri.parse("https://api.jsonbin.io/v3/b/$binId/latest"), headers: {"X-Master-Key": masterKey});
-                  if (getResp.statusCode == 200) {
-                    var decoded = jsonDecode(getResp.body);
-                    Map<String, dynamic> data = Map<String, dynamic>.from(decoded['record'] ?? {});
-                    data['activated_users'] ??= [];
-                    List activatedList = List.from(data['activated_users']);
-                    if (!activatedList.contains(username)) {
-                      activatedList.add(username);
-                      data['activated_users'] = activatedList;
-                      await http.put(
-                        Uri.parse("https://api.jsonbin.io/v3/b/$binId"),
-                        headers: {"Content-Type": "application/json", "X-Master-Key": masterKey},
-                        body: jsonEncode(data),
-                      );
-                    }
-                  }
+                  await FirebaseFirestore.instance.collection('app_settings').doc('activation_data').set({
+                    'activated_users': FieldValue.arrayUnion([username])
+                  }, SetOptions(merge: true));
                 } catch (e) {}
 
                 setState(() => _isActivated = true);
                 _timer?.cancel();
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح وسحابياً للأبد! 👑')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح وسحابياً عبر Firebase للأبد! 👑')));
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('كود التفعيل غير صحيح!')));
               }
@@ -552,7 +517,6 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// شاشة مسح الباركود معدلة لتعمل بثبات وتمنع الشاشة السوداء
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -561,7 +525,6 @@ class BarcodeScannerView extends StatefulWidget {
 }
 
 class _BarcodeScannerViewState extends State<BarcodeScannerView> {
-  late MobileScannerController controller;
   bool _hasPermission = false;
   bool _isChecking = true;
   bool _isScanned = false;
@@ -569,50 +532,26 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   @override
   void initState() {
     super.initState();
-    controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
-    _initCamera();
+    _checkPermission();
   }
 
-  Future<void> _initCamera() async {
+  Future<void> _checkPermission() async {
     var status = await Permission.camera.status;
     if (!status.isGranted) {
       status = await Permission.camera.request();
     }
 
-    if (status.isGranted) {
-      setState(() {
-        _hasPermission = true;
-        _isChecking = false;
-      });
-      // تأخير بسيط لضمان تهيئة العدسة وفتحها بشكل سليم
-      Future.delayed(const Duration(milliseconds: 300), () async {
-        try {
-          await controller.start();
-        } catch (e) {}
-      });
-    } else {
-      setState(() {
-        _hasPermission = false;
-        _isChecking = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
+    setState(() {
+      _hasPermission = status.isGranted;
+      _isChecking = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
       return Scaffold(
-        appBar: AppBar(title: const Text('جاري تهيئة الكاميرا')),
+        appBar: AppBar(title: const Text('جاري التحقق من الكاميرا')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -644,21 +583,8 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
       appBar: AppBar(
         title: const Text('مسح الباركود بالكاميرا'),
         backgroundColor: const Color(0xFF1E293B),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on, color: Colors.yellow),
-            onPressed: () => controller.toggleTorch(),
-            tooltip: 'الفلاش',
-          ),
-          IconButton(
-            icon: const Icon(Icons.camera_rear, color: Colors.white),
-            onPressed: () => controller.switchCamera(),
-            tooltip: 'تبديل الكاميرا',
-          ),
-        ],
       ),
       body: MobileScanner(
-        controller: controller,
         onDetect: (capture) {
           if (_isScanned) return;
           final List<Barcode> barcodes = capture.barcodes;
