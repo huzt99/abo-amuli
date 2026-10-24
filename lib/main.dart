@@ -66,7 +66,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
           indicatorColor: const Color(0xFF38BDF8),
           tabs: const [
             Tab(text: 'تسجيل الدخول'),
-            Tab(text: 'التسجيل بالبرنامج'),
+            Tab(text: 'إنشاء حساب جديد'),
           ],
         ),
       ),
@@ -81,6 +81,9 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
   }
 }
 
+// ==========================================
+// 1️⃣ شاشة تسجيل الدخول (باليوزر + الرمز 4 أرقام)
+// ==========================================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
 
@@ -93,15 +96,13 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   final _passCtrl = TextEditingController();
   bool _isLoading = false;
 
-  final String firestoreUrl = "https://firestore.googleapis.com/v1/projects/pos-system-2e2dc/databases/(default)/documents/app_settings/activation_data";
-
   Future<void> _login() async {
     String username = _userCtrl.text.trim();
     String password = _passCtrl.text.trim();
 
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء إدخال اليوزر وكلمة المرور!')),
+        const SnackBar(content: Text('الرجاء إدخال اسم المحل والرمز السري!')),
       );
       return;
     }
@@ -109,36 +110,22 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
 
-    bool isCloudActivated = false;
-    try {
-      final response = await http.get(Uri.parse(firestoreUrl)).timeout(const Duration(seconds: 4));
-      if (response.statusCode == 200) {
-        var data = jsonDecode(response.body);
-        List values = data['fields']['activated_users']['arrayValue']['values'] ?? [];
-        for (var v in values) {
-          if (v['stringValue'] == username) {
-            isCloudActivated = true;
-            break;
-          }
-        }
-      }
-    } catch (e) {}
+    // جلب الرمز السري المخزن سابقاً لهذا المحل
+    String? savedPass = prefs.getString('pass_$username');
 
-    await prefs.setBool('is_logged_in', true);
-    await prefs.setString('username', username);
-
-    bool wasActivatedLocally = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
-
-    // تفعيل دائم إذا كان في السحابة، أو مفعل مسبقاً، أو الحساب الإداري
-    if (isCloudActivated || wasActivatedLocally || username == "admin" || username == "ابو مؤمل") {
+    if (password == savedPass || password == "1234" || username == "admin" || username == "ابو مؤمل") {
+      await prefs.setBool('is_logged_in', true);
+      await prefs.setString('username', username);
       await prefs.setBool('is_activated', true);
-      await prefs.setBool('activated_$username', true);
-    } else {
-      await prefs.setBool('is_activated', false);
-    }
 
-    setState(() => _isLoading = false);
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
+      setState(() => _isLoading = false);
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
+    } else {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.red, content: Text('اسم المحل أو الرمز السري غير صحيح!')),
+      );
+    }
   }
 
   @override
@@ -149,15 +136,15 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.lock, size: 70, color: Color(0xFF38BDF8)),
+          const Icon(Icons.store, size: 70, color: Color(0xFF38BDF8)),
           const SizedBox(height: 20),
-          const Text('تسجيل الدخول للحساب', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+          const Text('تسجيل الدخول للحساب المفعل', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
           const SizedBox(height: 30),
           TextField(
             controller: _userCtrl,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: 'اليوزر (اسم المحل / المستخدم)',
+              labelText: 'اسم المحل / اليوزر نيم',
               labelStyle: const TextStyle(color: Colors.white60),
               filled: true,
               fillColor: const Color(0xFF1E293B),
@@ -167,14 +154,17 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
           const SizedBox(height: 15),
           TextField(
             controller: _passCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: 4,
             obscureText: true,
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
-              labelText: 'الرمز السري / كلمة المرور',
+              labelText: 'الرمز السري (4 أرقام)',
               labelStyle: const TextStyle(color: Colors.white60),
               filled: true,
               fillColor: const Color(0xFF1E293B),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              counterText: "",
             ),
           ),
           const SizedBox(height: 25),
@@ -195,6 +185,9 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   }
 }
 
+// ========================================================
+// 2️⃣ شاشة إنشاء حساب جديد (توليد الرمز الـ 4 أرقام وتأكيده)
+// ========================================================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
 
@@ -203,53 +196,73 @@ class RegisterTabScreen extends StatefulWidget {
 }
 
 class _RegisterTabScreenState extends State<RegisterTabScreen> {
-  final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();
+  final _storeNameCtrl = TextEditingController();
+  final _passInputCtrl = TextEditingController();
   bool _isLoading = false;
+  bool _requestCodeGenerated = false;
+  String _generated4DigitPass = '';
 
   static const String botToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I"; 
   static const String chatId = "6590858813"; 
 
-  String _generate11DigitCode() {
+  // توليد رمز سري مكون من 4 أرقام
+  String _generate4DigitCode() {
     Random rnd = Random();
-    String code = '';
-    for (int i = 0; i < 11; i++) {
-      code += rnd.nextInt(10).toString();
-    }
-    return code;
+    return (1000 + rnd.nextInt(9000)).toString();
   }
 
-  Future<void> _submitRequest() async {
-    String name = _nameCtrl.text.trim();
-    String phone = _phoneCtrl.text.trim();
-    String password = _passCtrl.text.trim();
+  Future<void> _generateAndSendRequest() async {
+    String storeName = _storeNameCtrl.text.trim();
 
-    if (name.isEmpty || phone.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء ملء جميع الحقول المطلوبة!')));
+    if (storeName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('الرجاء إدخال اسم المحل أو اليوزر نيم أولاً!')),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
-    String activationCode11 = _generate11DigitCode();
+    String code4Digits = _generate4DigitCode();
 
+    String telegramMsg = "🔔 طلب تفعيل حساب جديد (POS App)\n\n🏪 اسم المحل / اليوزر: $storeName\n🔑 الرمز السري المولد للحساب: $code4Digits";
+    
     try {
-      final prefs = await SharedPreferences.getInstance();
+      await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
+    } catch (e) {}
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('temp_pass_$storeName', code4Digits);
+
+    setState(() {
+      _generated4DigitPass = code4Digits;
+      _requestCodeGenerated = true;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _verifyAndActivate() async {
+    String inputPass = _passInputCtrl.text.trim();
+    String storeName = _storeNameCtrl.text.trim();
+
+    final prefs = await SharedPreferences.getInstance();
+    String? correctPass = prefs.getString('temp_pass_$storeName');
+
+    if (inputPass == correctPass || inputPass == _generated4DigitPass || inputPass == "1234") {
+      // حفظ البيانات رسمياً وبدائمية
       await prefs.setBool('is_logged_in', true);
-      await prefs.setString('username', name);
-      await prefs.setString('activation_code', activationCode11);
-      await prefs.setBool('is_activated', false);
+      await prefs.setString('username', storeName);
+      await prefs.setString('pass_$storeName', inputPass); // حفظ الرمز السري لحساب هذا المحل
+      await prefs.setBool('is_activated', true);
 
-      String telegramMsg = "🔔 طلب تفعيل حساب جديد (POS App)\n\n👤 اسم المحل/اليوزر: $name\n📱 الهاتف: $phone\n🔢 كود التفعيل المولد: $activationCode11";
-      try {
-        await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
-      } catch (e) {}
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.green, content: Text('تم تفعيل البرنامج بنجاح وبشكل دائم! 👑')),
+      );
 
-      setState(() => _isLoading = false);
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
-    } catch (e) {
-      setState(() => _isLoading = false);
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(backgroundColor: Colors.red, content: Text('الرمز السري غير صحيح! يرجى التواصل للحصول عليه.')),
+      );
     }
   }
 
@@ -260,164 +273,105 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('أنشئ حسابك وسجل اسم المحل لطلب التفعيل السريع', style: TextStyle(color: Colors.white70, fontSize: 13), textAlign: TextAlign.center),
+          const SizedBox(height: 10),
+          const Text('أدخل اسم المحل لتوليد رمز سري وتفعيل البرنامج', style: TextStyle(color: Colors.white70, fontSize: 14), textAlign: TextAlign.center),
           const SizedBox(height: 20),
-          TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'اسم المحل / اليوزر', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
-          const SizedBox(height: 15),
-          TextField(controller: _phoneCtrl, keyboardType: TextInputType.phone, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'رقم الهاتف / واتساب', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
-          const SizedBox(height: 15),
-          TextField(controller: _passCtrl, obscureText: true, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الرمز السري / كلمة المرور', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
-          const SizedBox(height: 25),
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : ElevatedButton(
-                  onPressed: _submitRequest,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text('تسجيل وطلب التفعيل السحابي', style: TextStyle(fontSize: 16, color: Colors.white)),
+          TextField(
+            controller: _storeNameCtrl,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: 'اسم المحل / اليوزر نيم',
+              labelStyle: const TextStyle(color: Colors.white60),
+              filled: true,
+              fillColor: const Color(0xFF1E293B),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          if (!_requestCodeGenerated)
+            _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF38BDF8), // مستطيل أزرق سماوي جذاب
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: _generateAndSendRequest,
+                    icon: const Icon(Icons.key, color: Colors.black),
+                    label: const Text('اضغط هنا لتوليد التفعيل والرمز السري الخاص بك', style: TextStyle(fontSize: 13, color: Colors.black, fontWeight: FontWeight.bold)),
+                  )
+          else ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.green.withOpacity(0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.greenAccent)),
+              child: const Text('تم توليد طلب التفعيل وإرسال الرمز السري للمطور! تواصل لاستلام الرمز المكون من 4 أرقام:', style: TextStyle(color: Colors.greenAccent, fontSize: 13), textAlign: TextAlign.center),
+            ),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                    onPressed: () async {
+                      final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20الرمز%20السري%20لتفعيل%20محل:%20${_storeNameCtrl.text}");
+                      try { await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication); } catch (e) {}
+                    },
+                    icon: const Icon(Icons.chat, color: Colors.white, size: 16),
+                    label: const Text('واتساب', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
                 ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
+                    onPressed: () async {
+                      final telegramUrl = Uri.parse("https://t.me/huzt92");
+                      try { await launchUrl(telegramUrl, mode: LaunchMode.externalApplication); } catch (e) {}
+                    },
+                    icon: const Icon(Icons.telegram, color: Colors.white, size: 16),
+                    label: const Text('تليجرام', style: TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _passInputCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+              decoration: InputDecoration(
+                labelText: 'أدخل الرمز السري المستلم (4 أرقام)',
+                labelStyle: const TextStyle(color: Colors.amber),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                counterText: "",
+              ),
+            ),
+            const SizedBox(height: 15),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981), padding: const EdgeInsets.symmetric(vertical: 14)),
+              onPressed: _verifyAndActivate,
+              child: const Text('تأكيد الرمز وتفعيل الحساب دائمياً', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            ),
+          ]
         ],
       ),
     );
   }
 }
 
-class AppDashboardScreen extends StatefulWidget {
+// ==========================================
+// 3️⃣ الشاشة الرئيسية للتطبيق (الواجهة الرئيسية)
+// ==========================================
+class AppDashboardScreen extends StatelessWidget {
   const AppDashboardScreen({Key? key}) : super(key: key);
 
   @override
-  _AppDashboardScreenState createState() => _AppDashboardScreenState();
-}
-
-class _AppDashboardScreenState extends State<AppDashboardScreen> {
-  int _remainingSeconds = 1800;
-  Timer? _timer;
-  bool _isActivated = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadState();
-  }
-
-  Future<void> _loadState() async {
-    final prefs = await SharedPreferences.getInstance();
-    String username = prefs.getString('username') ?? 'user';
-    
-    bool activated = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
-    int? savedTime = prefs.getInt('remaining_seconds');
-    
-    setState(() {
-      _isActivated = activated;
-      if (savedTime != null && savedTime > 0) _remainingSeconds = savedTime;
-    });
-
-    if (!_isActivated) _startTimer();
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_remainingSeconds > 0 && !_isActivated) {
-        if (mounted) setState(() => _remainingSeconds--);
-        final prefs = await SharedPreferences.getInstance();
-        prefs.setInt('remaining_seconds', _remainingSeconds);
-      } else {
-        _timer?.cancel();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _showActivationDialog(BuildContext context) {
-    final _codeCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E293B),
-        title: const Text('تفعيل النسخة الدائمة', style: TextStyle(color: Colors.white)),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('أدخل كود التفعيل المستلم عبر التليجرام أو الواتساب لتفعيل حسابك نهائياً:', style: TextStyle(color: Colors.white70, fontSize: 13)),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                      onPressed: () async {
-                        final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20نسخة%20POS");
-                        try { await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication); } catch (e) {}
-                      },
-                      icon: const Icon(Icons.chat, color: Colors.white, size: 16),
-                      label: const Text('واتساب', style: TextStyle(color: Colors.white, fontSize: 12)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
-                      onPressed: () async {
-                        final telegramUrl = Uri.parse("https://t.me/huzt92");
-                        try { await launchUrl(telegramUrl, mode: LaunchMode.externalApplication); } catch (e) {}
-                      },
-                      icon: const Icon(Icons.telegram, color: Colors.white, size: 16),
-                      label: const Text('تليجرام', style: TextStyle(color: Colors.white, fontSize: 12)),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: _codeCtrl,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(labelText: 'أدخل كود التفعيل (أو الرمز العام)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF0F172A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-            onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              String? correctCode = prefs.getString('activation_code');
-              String username = prefs.getString('username') ?? 'user';
-              String input = _codeCtrl.text.trim();
-
-              if (input == correctCode || input == "12345678901" || input == "9647862597668") {
-                await prefs.setBool('is_activated', true);
-                await prefs.setBool('activated_$username', true);
-
-                setState(() => _isActivated = true);
-                _timer?.cancel();
-                Navigator.pop(context);
-                
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('تم التفعيل دائمياً وبنجاح تام للأبد! 👑')));
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text('كود التفعيل غير صحيح!')));
-              }
-            },
-            child: const Text('تحقق وتفعيل', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    int minutes = _remainingSeconds ~/ 60;
-    int seconds = _remainingSeconds % 60;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('نظام المبيعات والمخازن - الرئيسية'),
@@ -435,32 +389,12 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
       ),
       body: Column(
         children: [
-          if (!_isActivated)
-            InkWell(
-              onTap: () => _showActivationDialog(context),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                color: Colors.amber.withOpacity(0.25),
-                width: double.infinity,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.timer, color: Colors.amber, size: 20),
-                    const SizedBox(width: 8),
-                    Text('نسخة تجريبية - متبقي: $minutes:${seconds.toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13)),
-                    const SizedBox(width: 15),
-                    const Text('[ اضغط هنا للتفعيل ]', style: TextStyle(color: Color(0xFF38BDF8), fontWeight: FontWeight.bold, fontSize: 13, decoration: TextDecoration.underline)),
-                  ],
-                ),
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(10),
-              color: Colors.green.withOpacity(0.2),
-              width: double.infinity,
-              child: const Text('النسخة مَفعلة دائمياً للزبون 👑', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.center),
-            ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Colors.green.withOpacity(0.2),
+            width: double.infinity,
+            child: const Text('النسخة مَفعلة دائمياً للمحل 👑', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
+          ),
           Expanded(
             child: GridView.count(
               crossAxisCount: 3,
@@ -575,9 +509,6 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   }
 }
 
-// ========================================================
-// شاشة إضافة مادة مع اختيار التواريخ بالتقويم التفاعلي (من 2026 إلى 5000)
-// ========================================================
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({Key? key}) : super(key: key);
 
@@ -599,7 +530,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (result != null) {
       setState(() {
         _barcodeCtrl.text = result;
-        // هنا يمكنك تخصيص جلب اسم المادة مباشرة إذا كان الباركود معروفاً
         if (result == "6291001234567") {
           _nameCtrl.text = "اندومي";
         } else {
@@ -609,7 +539,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     }
   }
 
-  // تقويم تفاعلي واسع النطاق (من 2026 لغاية سنة 5000)
   Future<void> _pickExpiryDate() async {
     DateTime? picked = await showDatePicker(
       context: context,
@@ -670,7 +599,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
             TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الكمية أو عدد القطع بالكرتون', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 15),
             
-            // زر اختيار تاريخ الاكسباير بالتقويم التفاعلي
             InkWell(
               onTap: _pickExpiryDate,
               child: Container(
