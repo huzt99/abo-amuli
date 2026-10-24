@@ -1,51 +1,34 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    
-    <!-- أذونات الإنترنت والاتصال الخارجي -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.pos_client">
+
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
-
-    <!-- هذا هو الحل الجذري لأزرار الواتساب والتلجرام والإنترنت -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="https" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="http" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="whatsapp" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="tg" />
-        </intent>
-    </queries>
+    <uses-permission android:name="android.permission.FLASHLIGHT"/>
 
     <application
         android:label="نظام المبيعات والمخازن"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
+            
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
-              android:theme="@style/NormalTheme"
-              android:value="@string/io.flutter.embedding.android.NormalTheme" />
+              android:resource="@style/NormalTheme"
+              />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
-                <category android:name="category.LAUNCHER"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
