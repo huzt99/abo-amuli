@@ -6,22 +6,10 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: "AIzaSyArFq9R68T7mlNNKrIRs03A7uHNpzibHdo",
-      appId: "1:849284856784:android:58887f90b6b4694edb17d5",
-      messagingSenderId: "849284856784",
-      projectId: "pos-system-2e2dc",
-      storageBucket: "pos-system-2e2dc.firebasestorage.app",
-    ),
-  );
-
   final prefs = await SharedPreferences.getInstance();
   bool isLoggedIn = prefs.getBool('is_logged_in') ?? false;
   runApp(PosClientApp(isLoggedIn: isLoggedIn));
@@ -107,6 +95,9 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   final _passCtrl = TextEditingController();
   bool _isLoading = false;
 
+  // رابط فايربيز Firestore REST API لمشروع pos-system-2e2dc
+  final String firestoreUrl = "https://firestore.googleapis.com/v1/projects/pos-system-2e2dc/databases/(default)/documents/app_settings/activation_data";
+
   Future<void> _login() async {
     String username = _userCtrl.text.trim();
     String password = _passCtrl.text.trim();
@@ -123,11 +114,15 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
 
     bool isCloudActivated = false;
     try {
-      var doc = await FirebaseFirestore.instance.collection('app_settings').doc('activation_data').get();
-      if (doc.exists) {
-        List activatedList = doc.data()?['activated_users'] ?? [];
-        if (activatedList.contains(username)) {
-          isCloudActivated = true;
+      final response = await http.get(Uri.parse(firestoreUrl));
+      if (response.statusCode == 200) {
+        var data = jsonDecode(response.body);
+        List values = data['fields']['activated_users']['arrayValue']['values'] ?? [];
+        for (var v in values) {
+          if (v['stringValue'] == username) {
+            isCloudActivated = true;
+            break;
+          }
         }
       }
     } catch (e) {}
@@ -245,17 +240,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setString('activation_code', activationCode11);
       await prefs.setBool('is_activated', false);
 
-      await FirebaseFirestore.instance.collection('app_settings').doc('activation_data').set({
-        'pending_requests': FieldValue.arrayUnion([{
-          'name': name,
-          'phone': phone,
-          'password': password,
-          'code_11': activationCode11,
-          'date': DateTime.now().toIso8601String(),
-        }])
-      }, SetOptions(merge: true));
-
-      String telegramMsg = "🔔 طلب تفعيل جديد (POS - Firebase)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 الكود: $activationCode11";
+      String telegramMsg = "🔔 طلب تفعيل جديد (POS - Firebase HTTP)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 الكود: $activationCode11";
       try {
         await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
       } catch (e) {}
@@ -406,16 +391,10 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 await prefs.setBool('is_activated', true);
                 await prefs.setBool('activated_$username', true);
                 
-                try {
-                  await FirebaseFirestore.instance.collection('app_settings').doc('activation_data').set({
-                    'activated_users': FieldValue.arrayUnion([username])
-                  }, SetOptions(merge: true));
-                } catch (e) {}
-
                 setState(() => _isActivated = true);
                 _timer?.cancel();
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح وسحابياً عبر Firebase للأبد! 👑')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح للأبد! 👑')));
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('كود التفعيل غير صحيح!')));
               }
@@ -515,7 +494,6 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// شاشة مسح الباركود الصافية لتجنب أي شاشة سودة أو أخطاء
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
