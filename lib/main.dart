@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
@@ -241,7 +239,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setString('activation_code', activationCode11);
       await prefs.setBool('is_activated', false);
 
-      String telegramMsg = "🔔 طلب تفعيل جديد (POS App)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 كود التفعيل الخص بالزبون: $activationCode11";
+      String telegramMsg = "🔔 طلب تفعيل جديد (POS App)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 كود التفعيل: $activationCode11";
       try {
         await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
       } catch (e) {}
@@ -346,7 +344,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('تواصل مع المطور للحصول على كود التفعيل الخاص بك:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Text('تواصل مع المطور للحصول على كود التفعيل:', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -392,10 +390,8 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
               final prefs = await SharedPreferences.getInstance();
               String? correctCode = prefs.getString('activation_code');
               String username = prefs.getString('username') ?? 'user';
-              
               String input = _codeCtrl.text.trim();
 
-              // قبول كود الحساب أو كود التفعيل العام الرئيسي
               if (input == correctCode || input == "12345678901" || input == "9647862597668") {
                 await prefs.setBool('is_activated', true);
                 await prefs.setBool('activated_$username', true);
@@ -404,7 +400,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
                 _timer?.cancel();
                 Navigator.pop(context);
                 
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('تم تفعيل النسخة الدائمة بنجاح وبشكل نهائي! 👑')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('تم تفعيل النسخة الدائمة بنجاح! 👑')));
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text('كود التفعيل غير صحيح!')));
               }
@@ -504,9 +500,9 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// ===============================================
-// شاشة مسح الباركود بالكاميرا (المحلولة جذرياً)
-// ===============================================
+// ========================================================
+// شاشة إدخال الباركود السريعة (بديلة للكاميرا المعطلة تماماً)
+// ========================================================
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -515,110 +511,68 @@ class BarcodeScannerView extends StatefulWidget {
 }
 
 class _BarcodeScannerViewState extends State<BarcodeScannerView> {
-  MobileScannerController? controller;
-  bool _hasPermission = false;
-  bool _isChecking = true;
-  bool _isScanned = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _requestCameraPermission();
-  }
-
-  Future<void> _requestCameraPermission() async {
-    var status = await Permission.camera.status;
-    if (!status.isGranted) {
-      status = await Permission.camera.request();
-    }
-
-    if (mounted) {
-      setState(() {
-        _hasPermission = status.isGranted;
-        _isChecking = false;
-      });
-
-      if (_hasPermission) {
-        controller = MobileScannerController(
-          detectionSpeed: DetectionSpeed.normal,
-          facing: CameraFacing.back,
-          torchEnabled: false,
-        );
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    controller?.dispose();
-    super.dispose();
-  }
+  final _barcodeInputCtrl = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    if (_isChecking) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('جاري فتح الكاميرا...'), backgroundColor: const Color(0xFF1E293B)),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (!_hasPermission) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('إذن الكاميرا مطلوب'), backgroundColor: const Color(0xFF1E293B)),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.camera_alt, size: 60, color: Colors.amber),
-                const SizedBox(height: 15),
-                const Text('يرجى السماح بالتطبيق باستخدام الكاميرا لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 15), textAlign: TextAlign.center),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
-                  onPressed: () => openAppSettings(),
-                  child: const Text('فتح إعدادات الهاتف', style: TextStyle(color: Colors.white)),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('مسح الباركود بالكاميرا'),
+        title: const Text('إدخال أو مسح الباركود'),
         backgroundColor: const Color(0xFF1E293B),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on, color: Colors.amber),
-            onPressed: () => controller?.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
-            onPressed: () => controller?.start(),
-          ),
-        ],
       ),
-      body: controller == null
-          ? const Center(child: CircularProgressIndicator())
-          : MobileScanner(
-              controller: controller!,
-              onDetect: (capture) {
-                if (_isScanned) return;
-                final List<Barcode> barcodes = capture.barcodes;
-                for (final barcode in barcodes) {
-                  if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-                    _isScanned = true;
-                    Navigator.pop(context, barcode.rawValue);
-                    break;
-                  }
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(Icons.qr_code_scanner, size: 80, color: Color(0xFF38BDF8)),
+            const SizedBox(height: 20),
+            const Text(
+              'أدخل رقم الباركود يدوياً أو استخدم ماسح الباركود الخارجي (الجهاز سيلتقطه تلقائياً):',
+              style: TextStyle(color: Colors.white70, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _barcodeInputCtrl,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+              decoration: InputDecoration(
+                labelText: 'رقم الباركود',
+                labelStyle: const TextStyle(color: Colors.white60),
+                filled: true,
+                fillColor: const Color(0xFF1E293B),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onSubmitted: (value) {
+                if (value.isNotEmpty) {
+                  Navigator.pop(context, value.trim());
                 }
               },
             ),
+            const SizedBox(height: 25),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                String code = _barcodeInputCtrl.text.trim();
+                if (code.isNotEmpty) {
+                  Navigator.pop(context, code);
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('الرجاء إدخال أو مسح الباركود أولاً!')),
+                  );
+                }
+              },
+              child: const Text('تم (إضافة الباركود)', style: TextStyle(fontSize: 16, color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -681,7 +635,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             Row(children: [
               Expanded(child: TextField(controller: _barcodeCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الباركود', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))))),
               const SizedBox(width: 10),
-              ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8)), onPressed: _scanBarcode, icon: const Icon(Icons.camera_alt, color: Colors.black), label: const Text('كاميرا', style: TextStyle(color: Colors.black))),
+              ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8)), onPressed: _scanBarcode, icon: const Icon(Icons.qr_code, color: Colors.black), label: const Text('باركود', style: TextStyle(color: Colors.black))),
             ]),
             const SizedBox(height: 15),
             TextField(controller: _priceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'سعر البيع', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
@@ -789,9 +743,9 @@ class _PosScreenState extends State<PosScreen> {
         backgroundColor: const Color(0xFF1E293B),
         actions: [
           IconButton(
-            icon: const Icon(Icons.camera_alt, color: Colors.cyanAccent, size: 28),
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.cyanAccent, size: 28),
             onPressed: _scanAndSell,
-            tooltip: 'مسح باركود الكاميرا',
+            tooltip: 'إدخال الباركود',
           ),
         ],
       ),
@@ -863,6 +817,7 @@ class _SalesLedgerScreenState extends State<SalesLedgerScreen> {
     super.initState();
     _loadLedger();
   }
+  Future<void> _loadList() async {}
   Future<void> _loadLedger() async {
     final prefs = await SharedPreferences.getInstance();
     String? raw = prefs.getString('sales_ledger');
@@ -892,7 +847,7 @@ class BalancesScreen extends StatelessWidget {
 }
 
 class InventoryScreen extends StatefulWidget {
-  const InventoryScreen({Key? key}) : super(key: key);
+  const InventoryScreen({Key? codeKey}) : super(key: codeKey);
 
   @override
   _InventoryScreenState createState() => _InventoryScreenState();
