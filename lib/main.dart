@@ -82,7 +82,7 @@ class _ClientMainScreenState extends State<ClientMainScreen> with SingleTickerPr
 }
 
 // ==========================================
-// 1️⃣ شاشة تسجيل الدخول (باليوزر + الرمز 4 أرقام)
+// 1️⃣ تسجيل الدخول (صار بالرمز الحقيقي فقط)
 // ==========================================
 class LoginTabScreen extends StatefulWidget {
   const LoginTabScreen({Key? key}) : super(key: key);
@@ -110,10 +110,11 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     setState(() => _isLoading = true);
     final prefs = await SharedPreferences.getInstance();
 
-    // جلب الرمز السري المخزن سابقاً لهذا المحل
+    // جلب الرمز السري الحقيقي المخزن لهذا اليوزر
     String? savedPass = prefs.getString('pass_$username');
 
-    if (password == savedPass || password == "1234" || username == "admin" || username == "ابو مؤمل") {
+    // مطابقة صارمة: الرمز المستلم فقط أو حساب المطور
+    if ((savedPass != null && password == savedPass) || (username == "admin" && password == "0000")) {
       await prefs.setBool('is_logged_in', true);
       await prefs.setString('username', username);
       await prefs.setBool('is_activated', true);
@@ -186,7 +187,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
 }
 
 // ========================================================
-// 2️⃣ شاشة إنشاء حساب جديد (توليد الرمز الـ 4 أرقام وتأكيده)
+// 2️⃣ إنشاء حساب (توليد كود التليجرام الحقيقي والمطابقة الصارمة)
 // ========================================================
 class RegisterTabScreen extends StatefulWidget {
   const RegisterTabScreen({Key? key}) : super(key: key);
@@ -200,12 +201,11 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   final _passInputCtrl = TextEditingController();
   bool _isLoading = false;
   bool _requestCodeGenerated = false;
-  String _generated4DigitPass = '';
+  String _sent4DigitPass = '';
 
   static const String botToken = "8985397948:AAHqEZ3d-VP-aDUTe6yP5ndFbaKevMVA_1I"; 
   static const String chatId = "6590858813"; 
 
-  // توليد رمز سري مكون من 4 أرقام
   String _generate4DigitCode() {
     Random rnd = Random();
     return (1000 + rnd.nextInt(9000)).toString();
@@ -234,7 +234,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
     await prefs.setString('temp_pass_$storeName', code4Digits);
 
     setState(() {
-      _generated4DigitPass = code4Digits;
+      _sent4DigitPass = code4Digits;
       _requestCodeGenerated = true;
       _isLoading = false;
     });
@@ -247,11 +247,11 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
     final prefs = await SharedPreferences.getInstance();
     String? correctPass = prefs.getString('temp_pass_$storeName');
 
-    if (inputPass == correctPass || inputPass == _generated4DigitPass || inputPass == "1234") {
-      // حفظ البيانات رسمياً وبدائمية
+    // مطابقة حصرية مع الكود المرسل للتليجرام فقط
+    if (inputPass == correctPass && inputPass.isNotEmpty) {
       await prefs.setBool('is_logged_in', true);
       await prefs.setString('username', storeName);
-      await prefs.setString('pass_$storeName', inputPass); // حفظ الرمز السري لحساب هذا المحل
+      await prefs.setString('pass_$storeName', inputPass); // حفظ الرمز السري رسمياً
       await prefs.setBool('is_activated', true);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -261,7 +261,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const AppDashboardScreen()));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(backgroundColor: Colors.red, content: Text('الرمز السري غير صحيح! يرجى التواصل للحصول عليه.')),
+        const SnackBar(backgroundColor: Colors.red, content: Text('الرمز السري غير صحيح! يرجى إدخال الرمز المرسل للتليجرام.')),
       );
     }
   }
@@ -294,7 +294,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
                 ? const Center(child: CircularProgressIndicator())
                 : ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF38BDF8), // مستطيل أزرق سماوي جذاب
+                      backgroundColor: const Color(0xFF38BDF8),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -306,7 +306,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: Colors.green.withOpacity(0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.greenAccent)),
-              child: const Text('تم توليد طلب التفعيل وإرسال الرمز السري للمطور! تواصل لاستلام الرمز المكون من 4 أرقام:', style: TextStyle(color: Colors.greenAccent, fontSize: 13), textAlign: TextAlign.center),
+              child: const Text('تم توليد طلب التفعيل وإرساله للتليجرام! تواصل مع المطور لاستلام الرمز السري المكون من 4 أرقام:', style: TextStyle(color: Colors.greenAccent, fontSize: 13), textAlign: TextAlign.center),
             ),
             const SizedBox(height: 15),
             Row(
@@ -364,9 +364,6 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
   }
 }
 
-// ==========================================
-// 3️⃣ الشاشة الرئيسية للتطبيق (الواجهة الرئيسية)
-// ==========================================
 class AppDashboardScreen extends StatelessWidget {
   const AppDashboardScreen({Key? key}) : super(key: key);
 
@@ -509,6 +506,9 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   }
 }
 
+// ========================================================
+// 3️⃣ شاشة إضافة مادة (مادة بباركود أو بدون باركود)
+// ========================================================
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({Key? key}) : super(key: key);
 
@@ -530,11 +530,6 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (result != null) {
       setState(() {
         _barcodeCtrl.text = result;
-        if (result == "6291001234567") {
-          _nameCtrl.text = "اندومي";
-        } else {
-          _nameCtrl.text = "مادة جديدة ($result)";
-        }
       });
     }
   }
@@ -554,8 +549,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Future<void> _addProduct() async {
-    if (_nameCtrl.text.isEmpty || _priceCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('يرجى كتابة اسم المادة والسعر!')));
+    // تشترط اسم المادة والسعر فقط (الباركود اختياري!)
+    if (_nameCtrl.text.trim().isEmpty || _priceCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى كتابة اسم المادة وسعر البيع على الأقل!')),
+      );
       return;
     }
     final prefs = await SharedPreferences.getInstance();
@@ -564,7 +562,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
     
     products.add({
       'name': _nameCtrl.text.trim(),
-      'barcode': _barcodeCtrl.text.trim(),
+      'barcode': _barcodeCtrl.text.trim().isEmpty ? 'بدون باركود' : _barcodeCtrl.text.trim(),
       'price': double.parse(_priceCtrl.text.trim()),
       'qty': int.tryParse(_qtyCtrl.text.trim()) ?? 1,
       'add_date': DateTime.now().toString().substring(0, 10),
@@ -573,30 +571,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
     });
 
     await prefs.setString('saved_products', jsonEncode(products));
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت إضافة المادة والكمية بنجاح!')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('تمت إضافة المادة بنجاح!')));
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('إضافة مادة جديدة وتاريخ الصلاحية'), backgroundColor: const Color(0xFF1E293B)),
+      appBar: AppBar(title: const Text('إضافة مادة جديدة للمخزن'), backgroundColor: const Color(0xFF1E293B)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'اسم المادة (مطلوب)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            const SizedBox(height: 15),
             Row(children: [
-              Expanded(child: TextField(controller: _barcodeCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الباركود', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))))),
+              Expanded(child: TextField(controller: _barcodeCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الباركود (اختياري - اتركه فارغاً بدون باركود)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))))),
               const SizedBox(width: 10),
               ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF38BDF8)), onPressed: _scanBarcode, icon: const Icon(Icons.qr_code, color: Colors.black), label: const Text('مسح', style: TextStyle(color: Colors.black))),
             ]),
             const SizedBox(height: 15),
-            TextField(controller: _nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'اسم المادة (يظهر تلقائياً)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            TextField(controller: _priceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'سعر البيع (مطلوب)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 15),
-            TextField(controller: _priceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'سعر البيع', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
-            const SizedBox(height: 15),
-            TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الكمية أو عدد القطع بالكرتون', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
+            TextField(controller: _qtyCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'الكمية المخزونة', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF1E293B), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)))),
             const SizedBox(height: 15),
             
             InkWell(
@@ -655,8 +653,7 @@ class _PosScreenState extends State<PosScreen> {
     } else {
       setState(() {
         _products = [
-          {'name': 'اندومي', 'price': 500.0, 'barcode': '6291001234567', 'expiry_date': '2027/12/31'},
-          {'name': 'شاي', 'price': 2500.0, 'barcode': '', 'expiry_date': 'بدون'},
+          {'name': 'شاي', 'price': 2500.0, 'barcode': 'بدون باركود', 'expiry_date': 'بدون'},
         ];
       });
     }
