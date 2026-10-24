@@ -95,7 +95,6 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
   final _passCtrl = TextEditingController();
   bool _isLoading = false;
 
-  // رابط فايربيز Firestore REST API لمشروع pos-system-2e2dc
   final String firestoreUrl = "https://firestore.googleapis.com/v1/projects/pos-system-2e2dc/databases/(default)/documents/app_settings/activation_data";
 
   Future<void> _login() async {
@@ -114,7 +113,7 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
 
     bool isCloudActivated = false;
     try {
-      final response = await http.get(Uri.parse(firestoreUrl));
+      final response = await http.get(Uri.parse(firestoreUrl)).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         List values = data['fields']['activated_users']['arrayValue']['values'] ?? [];
@@ -130,7 +129,9 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', username);
 
-    if (isCloudActivated || username == "admin" || username == "ابو مؤمل" || prefs.getBool('activated_$username') == true) {
+    bool wasActivatedLocally = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
+
+    if (isCloudActivated || wasActivatedLocally || username == "admin" || username == "ابو مؤمل") {
       await prefs.setBool('is_activated', true);
       await prefs.setBool('activated_$username', true);
     } else {
@@ -240,7 +241,7 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
       await prefs.setString('activation_code', activationCode11);
       await prefs.setBool('is_activated', false);
 
-      String telegramMsg = "🔔 طلب تفعيل جديد (POS - Firebase HTTP)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 الكود: $activationCode11";
+      String telegramMsg = "🔔 طلب تفعيل جديد (POS App)\n\n👤 اليوزر: $name\n📱 الهاتف: $phone\n🔢 كود التفعيل الخص بالزبون: $activationCode11";
       try {
         await http.get(Uri.parse("https://api.telegram.org/bot$botToken/sendMessage?chat_id=$chatId&text=${Uri.encodeComponent(telegramMsg)}"));
       } catch (e) {}
@@ -302,19 +303,23 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   Future<void> _loadState() async {
     final prefs = await SharedPreferences.getInstance();
     String username = prefs.getString('username') ?? 'user';
+    
     bool activated = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
     int? savedTime = prefs.getInt('remaining_seconds');
+    
     setState(() {
       _isActivated = activated;
       if (savedTime != null && savedTime > 0) _remainingSeconds = savedTime;
     });
+
     if (!_isActivated) _startTimer();
   }
 
   void _startTimer() {
+    _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (_remainingSeconds > 0 && !_isActivated) {
-        setState(() => _remainingSeconds--);
+        if (mounted) setState(() => _remainingSeconds--);
         final prefs = await SharedPreferences.getInstance();
         prefs.setInt('remaining_seconds', _remainingSeconds);
       } else {
@@ -341,7 +346,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('تواصل مع المطور للحصول على كود التفعيل:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const Text('تواصل مع المطور للحصول على كود التفعيل الخاص بك:', style: TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -387,16 +392,21 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
               final prefs = await SharedPreferences.getInstance();
               String? correctCode = prefs.getString('activation_code');
               String username = prefs.getString('username') ?? 'user';
-              if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
+              
+              String input = _codeCtrl.text.trim();
+
+              // قبول كود الحساب أو كود التفعيل العام الرئيسي
+              if (input == correctCode || input == "12345678901" || input == "9647862597668") {
                 await prefs.setBool('is_activated', true);
                 await prefs.setBool('activated_$username', true);
-                
+
                 setState(() => _isActivated = true);
                 _timer?.cancel();
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تفعيل النسخة الدائمة بنجاح للأبد! 👑')));
+                
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.green, content: Text('تم تفعيل النسخة الدائمة بنجاح وبشكل نهائي! 👑')));
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('كود التفعيل غير صحيح!')));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(backgroundColor: Colors.red, content: Text('كود التفعيل غير صحيح!')));
               }
             },
             child: const Text('تحقق وتفعيل', style: TextStyle(color: Colors.white)),
@@ -494,6 +504,9 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
+// ===============================================
+// شاشة مسح الباركود بالكاميرا (المحلولة جذرياً)
+// ===============================================
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -502,6 +515,7 @@ class BarcodeScannerView extends StatefulWidget {
 }
 
 class _BarcodeScannerViewState extends State<BarcodeScannerView> {
+  MobileScannerController? controller;
   bool _hasPermission = false;
   bool _isChecking = true;
   bool _isScanned = false;
@@ -509,44 +523,63 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   @override
   void initState() {
     super.initState();
-    _checkPermission();
+    _requestCameraPermission();
   }
 
-  Future<void> _checkPermission() async {
+  Future<void> _requestCameraPermission() async {
     var status = await Permission.camera.status;
     if (!status.isGranted) {
       status = await Permission.camera.request();
     }
-    setState(() {
-      _hasPermission = status.isGranted;
-      _isChecking = false;
-    });
+
+    if (mounted) {
+      setState(() {
+        _hasPermission = status.isGranted;
+        _isChecking = false;
+      });
+
+      if (_hasPermission) {
+        controller = MobileScannerController(
+          detectionSpeed: DetectionSpeed.normal,
+          facing: CameraFacing.back,
+          torchEnabled: false,
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    controller?.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_isChecking) {
       return Scaffold(
-        appBar: AppBar(title: const Text('جاري التحقق من الكاميرا')),
+        appBar: AppBar(title: const Text('جاري فتح الكاميرا...'), backgroundColor: const Color(0xFF1E293B)),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (!_hasPermission) {
       return Scaffold(
-        appBar: AppBar(title: const Text('إذن الكاميرا مرفوض')),
+        appBar: AppBar(title: const Text('إذن الكاميرا مطلوب'), backgroundColor: const Color(0xFF1E293B)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(20.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('يرجى السماح للتطبيق باستخدام الكاميرا من إعدادات الهاتف لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+                const Icon(Icons.camera_alt, size: 60, color: Colors.amber),
+                const SizedBox(height: 15),
+                const Text('يرجى السماح بالتطبيق باستخدام الكاميرا لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 15), textAlign: TextAlign.center),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
                   onPressed: () => openAppSettings(),
-                  child: const Text('فتح إعدادات التطبيق', style: TextStyle(color: Colors.white)),
+                  child: const Text('فتح إعدادات الهاتف', style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
@@ -559,20 +592,33 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
       appBar: AppBar(
         title: const Text('مسح الباركود بالكاميرا'),
         backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flash_on, color: Colors.amber),
+            onPressed: () => controller?.toggleTorch(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            onPressed: () => controller?.start(),
+          ),
+        ],
       ),
-      body: MobileScanner(
-        onDetect: (BarcodeCapture capture) {
-          if (_isScanned) return;
-          final List<Barcode> barcodes = capture.barcodes;
-          for (final barcode in barcodes) {
-            if (barcode.rawValue != null) {
-              _isScanned = true;
-              Navigator.pop(context, barcode.rawValue);
-              break;
-            }
-          }
-        },
-      ),
+      body: controller == null
+          ? const Center(child: CircularProgressIndicator())
+          : MobileScanner(
+              controller: controller!,
+              onDetect: (capture) {
+                if (_isScanned) return;
+                final List<Barcode> barcodes = capture.barcodes;
+                for (final barcode in barcodes) {
+                  if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+                    _isScanned = true;
+                    Navigator.pop(context, barcode.rawValue);
+                    break;
+                  }
+                }
+              },
+            ),
     );
   }
 }
