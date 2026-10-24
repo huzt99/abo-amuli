@@ -12,8 +12,6 @@ import 'package:http/http.dart' as http;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // التهيئة المباشرة لـ Firebase بدون الحاجة لأي ملفات خارجية
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: "AIzaSyArFq9R68T7mlNNKrIRs03A7uHNpzibHdo",
@@ -517,6 +515,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
+// شاشة مسح الباركود الصافية لتجنب أي شاشة سودة أو أخطاء
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -540,7 +539,6 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
     if (!status.isGranted) {
       status = await Permission.camera.request();
     }
-
     setState(() {
       _hasPermission = status.isGranted;
       _isChecking = false;
@@ -585,7 +583,7 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
         backgroundColor: const Color(0xFF1E293B),
       ),
       body: MobileScanner(
-        onDetect: (capture) {
+        onDetect: (BarcodeCapture capture) {
           if (_isScanned) return;
           final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
