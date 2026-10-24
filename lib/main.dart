@@ -546,6 +546,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
+// شاشة مسح الباركود مع التشغيل التلقائي المباشر للعدسة لتجنب الشاشة السوداء
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -554,28 +555,42 @@ class BarcodeScannerView extends StatefulWidget {
 }
 
 class _BarcodeScannerViewState extends State<BarcodeScannerView> {
-  MobileScannerController controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-    facing: CameraFacing.back,
-  );
+  late MobileScannerController controller;
   bool _hasPermission = false;
   bool _isChecking = true;
+  bool _isScanned = false;
 
   @override
   void initState() {
     super.initState();
-    _checkPermission();
+    controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+    );
+    _checkPermissionAndStart();
   }
 
-  Future<void> _checkPermission() async {
+  Future<void> _checkPermissionAndStart() async {
     var status = await Permission.camera.status;
     if (!status.isGranted) {
       status = await Permission.camera.request();
     }
-    setState(() {
-      _hasPermission = status.isGranted;
-      _isChecking = false;
-    });
+    
+    if (status.isGranted) {
+      setState(() {
+        _hasPermission = true;
+        _isChecking = false;
+      });
+      // تشغيل الكاميرا صراحة
+      try {
+        await controller.start();
+      } catch (e) {}
+    } else {
+      setState(() {
+        _hasPermission = false;
+        _isChecking = false;
+      });
+    }
   }
 
   @override
@@ -592,22 +607,55 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+    
     if (!_hasPermission) {
       return Scaffold(
         appBar: AppBar(title: const Text('إذن الكاميرا مرفوض')),
         body: Center(
-          child: ElevatedButton(onPressed: () => openAppSettings(), child: const Text('فتح الإعدادات')),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('يرجى السماح للتطبيق بالوصول إلى الكاميرا من إعدادات الهاتف لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                  onPressed: () => openAppSettings(),
+                  child: const Text('فتح الإعدادات', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
+
     return Scaffold(
-      appBar: AppBar(title: const Text('مسح الباركود')),
+      appBar: AppBar(
+        title: const Text('مسح الباركود بالكاميرا'),
+        backgroundColor: const Color(0xFF1E293B),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flash_on, color: Colors.yellow),
+            onPressed: () => controller.toggleTorch(),
+            tooltip: 'الفلاش',
+          ),
+          IconButton(
+            icon: const Icon(Icons.camera_rear, color: Colors.white),
+            onPressed: () => controller.switchCamera(),
+            tooltip: 'تبديل الكاميرا',
+          ),
+        ],
+      ),
       body: MobileScanner(
         controller: controller,
         onDetect: (capture) {
-          final barcodes = capture.barcodes;
+          if (_isScanned) return;
+          final List<Barcode> barcodes = capture.barcodes;
           for (final barcode in barcodes) {
             if (barcode.rawValue != null) {
+              _isScanned = true;
               Navigator.pop(context, barcode.rawValue);
               break;
             }
