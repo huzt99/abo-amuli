@@ -418,11 +418,10 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
             onPressed: () async {
               final prefs = await SharedPreferences.getInstance();
               String? correctCode = prefs.getString('activation_code');
-              String username = prefs.getString('username'] ?? 'user';
+              String username = prefs.getString('username') ?? 'user';
               if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
                 await prefs.setBool('is_activated', true);
                 
-                // حفظ التفعيل سحابياً في JSONBin حتى لا يضيع أبداً عند إعادة التثبيت
                 try {
                   const String binId = "6ada49aaac6210605a49b2cb";
                   const String masterKey = r"$2a$10$ziZZDkZgcVtijBUQfD.L2uCwX5SaUbNN5dNTohrPgPgadg0CImSYG";
