@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "849284856784",
+    "project_id": "pos-system-2e2dc",
+    "storage_bucket": "pos-system-2e2dc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:849284856784:android:58887f90b6b4694edb17d5",
+        "android_client_info": {
+          "package_name": "com.huzt.posapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArFq9R68T7mlNNKrIRs03A7uHNpzibHdo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
