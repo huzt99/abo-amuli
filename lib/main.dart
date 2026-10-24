@@ -110,6 +110,10 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     }
 
     setState(() => _isLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+    
+    // التحقق المحلي الفوري أولاً لضمان عدم ضياع التفعيل أبداً
+    bool isLocallyActivated = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
     bool isCloudActivated = false;
 
     try {
@@ -128,12 +132,12 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
       }
     } catch (e) {}
 
-    final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', username);
 
-    if (isCloudActivated || username == "admin" || username == "ابو مؤمل") {
+    if (isLocallyActivated || isCloudActivated || username == "admin" || username == "ابو مؤمل") {
       await prefs.setBool('is_activated', true);
+      await prefs.setBool('activated_$username', true);
     } else {
       await prefs.setBool('is_activated', false);
     }
@@ -334,7 +338,8 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
 
   Future<void> _loadState() async {
     final prefs = await SharedPreferences.getInstance();
-    bool activated = prefs.getBool('is_activated') ?? false;
+    String username = prefs.getString('username') ?? 'user';
+    bool activated = prefs.getBool('activated_$username') ?? prefs.getBool('is_activated') ?? false;
     int? savedTime = prefs.getInt('remaining_seconds');
     setState(() {
       _isActivated = activated;
@@ -421,6 +426,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
               String username = prefs.getString('username') ?? 'user';
               if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
                 await prefs.setBool('is_activated', true);
+                await prefs.setBool('activated_$username', true);
                 
                 try {
                   const String binId = "6ada49aaac6210605a49b2cb";
@@ -546,7 +552,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
   }
 }
 
-// شاشة مسح الباركود مع التشغيل التلقائي المباشر للعدسة لتجنب الشاشة السوداء
+// شاشة مسح الباركود معدلة لتعمل بثبات وتمنع الشاشة السوداء
 class BarcodeScannerView extends StatefulWidget {
   const BarcodeScannerView({Key? key}) : super(key: key);
 
@@ -566,25 +572,28 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
     controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
+      torchEnabled: false,
     );
-    _checkPermissionAndStart();
+    _initCamera();
   }
 
-  Future<void> _checkPermissionAndStart() async {
+  Future<void> _initCamera() async {
     var status = await Permission.camera.status;
     if (!status.isGranted) {
       status = await Permission.camera.request();
     }
-    
+
     if (status.isGranted) {
       setState(() {
         _hasPermission = true;
         _isChecking = false;
       });
-      // تشغيل الكاميرا صراحة
-      try {
-        await controller.start();
-      } catch (e) {}
+      // تأخير بسيط لضمان تهيئة العدسة وفتحها بشكل سليم
+      Future.delayed(const Duration(milliseconds: 300), () async {
+        try {
+          await controller.start();
+        } catch (e) {}
+      });
     } else {
       setState(() {
         _hasPermission = false;
@@ -603,11 +612,11 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
   Widget build(BuildContext context) {
     if (_isChecking) {
       return Scaffold(
-        appBar: AppBar(title: const Text('التحقق من الكاميرا')),
+        appBar: AppBar(title: const Text('جاري تهيئة الكاميرا')),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    
+
     if (!_hasPermission) {
       return Scaffold(
         appBar: AppBar(title: const Text('إذن الكاميرا مرفوض')),
@@ -617,12 +626,12 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('يرجى السماح للتطبيق بالوصول إلى الكاميرا من إعدادات الهاتف لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+                const Text('يرجى السماح للتطبيق باستخدام الكاميرا من إعدادات الهاتف لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
                   onPressed: () => openAppSettings(),
-                  child: const Text('فتح الإعدادات', style: TextStyle(color: Colors.white)),
+                  child: const Text('فتح إعدادات التطبيق', style: TextStyle(color: Colors.white)),
                 ),
               ],
             ),
