@@ -111,7 +111,9 @@ class _LoginTabScreenState extends State<LoginTabScreen> {
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', username);
 
-    if (username == "admin" || username == "ابو مؤمل" || username == prefs.getString('saved_user')) {
+    // التحقق من التفعيل الدائم المخزن محلياً
+    bool globalActivated = prefs.getBool('global_activated') ?? false;
+    if (username == "admin" || username == "ابو مؤمل" || globalActivated) {
       await prefs.setBool('is_activated', true);
     }
 
@@ -211,7 +213,6 @@ class _RegisterTabScreenState extends State<RegisterTabScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('is_logged_in', true);
     await prefs.setString('username', name);
-    await prefs.setString('saved_user', name);
     await prefs.setString('activation_code', activationCode11);
 
     setState(() => _isLoading = false);
@@ -266,7 +267,7 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
 
   Future<void> _loadState() async {
     final prefs = await SharedPreferences.getInstance();
-    bool activated = prefs.getBool('is_activated') ?? false;
+    bool activated = prefs.getBool('is_activated') ?? prefs.getBool('global_activated') ?? false;
     int? savedTime = prefs.getInt('remaining_seconds');
     setState(() {
       _isActivated = activated;
@@ -300,18 +301,48 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E293B),
         title: const Text('تفعيل النسخة الدائمة', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text('أدخل كود التفعيل الخاص بك لتفعيل النسخة نهائياً:', style: TextStyle(color: Colors.white70, fontSize: 13)),
-            const SizedBox(height: 15),
-            TextField(
-              controller: _codeCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(labelText: 'كود التفعيل (11 رقم)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF0F172A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('للحصول على كود التفعيل، تواصل مع المطور مباشرة عبر أزرار الاتصال أدناه:', style: TextStyle(color: Colors.white70, fontSize: 13)),
+              const SizedBox(height: 15),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                      onPressed: () async {
+                        final whatsappUrl = Uri.parse("https://wa.me/9647862597668?text=مرحباً%20أبو%20مؤمل،%20أريد%20تفعيل%20نسخة%20POS");
+                        try { await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication); } catch (e) {}
+                      },
+                      icon: const Icon(Icons.chat, color: Colors.white, size: 18),
+                      label: const Text('واتساب', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0088cc)),
+                      onPressed: () async {
+                        final telegramUrl = Uri.parse("https://t.me/huzt92");
+                        try { await launchUrl(telegramUrl, mode: LaunchMode.externalApplication); } catch (e) {}
+                      },
+                      icon: const Icon(Icons.telegram, color: Colors.white, size: 18),
+                      label: const Text('تليجرام', style: TextStyle(color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _codeCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(labelText: 'كود التفعيل (11 رقم)', labelStyle: const TextStyle(color: Colors.white60), filled: true, fillColor: const Color(0xFF0F172A), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء', style: TextStyle(color: Colors.grey))),
@@ -322,6 +353,9 @@ class _AppDashboardScreenState extends State<AppDashboardScreen> {
               String? correctCode = prefs.getString('activation_code');
               if (_codeCtrl.text.trim() == correctCode || _codeCtrl.text.trim() == "12345678901") {
                 await prefs.setBool('is_activated', true);
+                // حفظ التفعيل بشكل دائم بحيث لا يطلب تفعيل مرة أخرى أبداً على الجهاز
+                await prefs.setBool('global_activated', true);
+                
                 setState(() => _isActivated = true);
                 _timer?.cancel();
                 Navigator.pop(context);
@@ -433,15 +467,28 @@ class BarcodeScannerView extends StatefulWidget {
 }
 
 class _BarcodeScannerViewState extends State<BarcodeScannerView> {
-  late MobileScannerController controller;
+  MobileScannerController controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.normal,
+    facing: CameraFacing.back,
+  );
+  bool _hasPermission = false;
+  bool _isChecking = true;
 
   @override
   void initState() {
     super.initState();
-    controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.back,
-    );
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    var status = await Permission.camera.status;
+    if (!status.isGranted) {
+      status = await Permission.camera.request();
+    }
+    setState(() {
+      _hasPermission = status.isGranted;
+      _isChecking = false;
+    });
   }
 
   @override
@@ -452,6 +499,36 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isChecking) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('التحقق من الكاميرا')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (!_hasPermission) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('إذن الكاميرا مرفوض')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('يرجى السماح للتطبيق باستخدام الكاميرا لمسح الباركود.', style: TextStyle(color: Colors.white, fontSize: 16), textAlign: TextAlign.center),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF10B981)),
+                  onPressed: () => openAppSettings(),
+                  child: const Text('فتح إعدادات التطبيق', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('مسح الباركود بالكاميرا'),
@@ -459,7 +536,10 @@ class _BarcodeScannerViewState extends State<BarcodeScannerView> {
           IconButton(
             icon: const Icon(Icons.flash_on, color: Colors.yellow),
             onPressed: () => controller.toggleTorch(),
-            tooltip: 'الفلاش',
+          ),
+          IconButton(
+            icon: const Icon(Icons.camera_rear, color: Colors.white),
+            onPressed: () => controller.switchCamera(),
           ),
         ],
       ),
